@@ -1,0 +1,496 @@
+<?php
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Handle Preflight
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+include '../db/sql.php'; 
+include '../auth/jwt.php'; 
+
+// --- AUTHENTICATION HELPER ---
+function getBearerToken() {
+    $headers = null;
+    if (isset($_SERVER['Authorization'])) {
+        $headers = trim($_SERVER["Authorization"]);
+    } else if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $headers = trim($_SERVER["HTTP_AUTHORIZATION"]);
+    } elseif (function_exists('apache_request_headers')) {
+        $requestHeaders = apache_request_headers();
+        $requestHeaders = array_change_key_case($requestHeaders, CASE_LOWER);
+        if (isset($requestHeaders['authorization'])) {
+            $headers = trim($requestHeaders['authorization']);
+        }
+    }
+    if (!empty($headers) && preg_match('/Bearer\s(\S+)/', $headers, $matches)) {
+        return $matches[1];
+    }
+    return null;
+}
+
+// 1. Cek Auth & Role Admin
+$token = getBearerToken();
+if (!$token) { http_response_code(401); echo json_encode(["status"=>false, "message"=>"Unauthorized"]); exit(); }
+
+$user = verify_jwt($token);
+// Asumsi di token ada role, atau cek manual ke DB
+if (!$user || (isset($user['role']) && $user['role'] !== 'admin')) {
+    // Jika role tidak ada di token, query ulang user ke DB untuk memastikan role
+    $uid = isset($user['uid']) ? $user['uid'] : $user['id'];
+    $q_role = mysqli_query($conn, "SELECT role FROM users WHERE id='$uid'");
+    $d_role = mysqli_fetch_assoc($q_role);
+    if($d_role['role'] !== 'admin'){
+        http_response_code(403);
+        echo json_encode(["status"=>false, "message"=>"Access Denied (Admin Only)"]); 
+        exit();
+    }
+}
+
+// Ambil JSON Input
+$input = json_decode(file_get_contents('php://input'), true);
+$method = $_SERVER['REQUEST_METHOD'];
+$action = isset($_GET['action']) ? $_GET['action'] : (isset($input['action']) ? $input['action'] : '');
+
+// --- ROUTING LOGIC ---
+
+// A. GET DATA (List Users / Detail Device / Templates)
+if ($method === 'GET') {
+    
+    // 1. Get Templates
+    if ($action === 'get_templates') {
+        $templates_data = [];
+        $q_temp = mysqli_query($conn, "SELECT t.template_code, t.template_name, p.param_name, p.mqtt_suffix, p.unit, p.data 
+                                       FROM device_templates t 
+                                       JOIN template_params p ON t.id = p.template_id 
+                                       ORDER BY t.id, p.id");
+        while($row = mysqli_fetch_assoc($q_temp)){
+            $code = $row['template_code'];
+            $templates_data[$code]['name'] = $row['template_name'];
+            $templates_data[$code]['params'][] = [
+                'n' => $row['param_name'],
+                'k' => $row['mqtt_suffix'],
+                'u' => $row['unit'],
+                'd' => $row['data']
+                
+            ];
+        }
+        echo json_encode(["status"=>true, "data"=>$templates_data]);
+        exit();
+    }
+
+    // 2. Get Detail Config Device (untuk Modal Edit)
+  if ($action === 'get_device_config' && isset($_GET['device_unique_id'])) {
+
+    $did = mysqli_real_escape_string($conn, $_GET['device_unique_id']);
+    $settings = [];
+
+    // ================================
+    // Ambil data sensor
+    // ================================
+    $q_s = mysqli_query(
+        $conn,
+        "SELECT * 
+         FROM device_settings 
+         WHERE device_unique_id='$did' 
+         AND category='sensor' 
+         ORDER BY display_order ASC"
+    );
+
+    while ($s = mysqli_fetch_assoc($q_s)) {
+
+        // cek chart
+        $q_chart = mysqli_query(
+            $conn,
+            "SELECT chart_order, data 
+             FROM user_sensor_charts 
+             WHERE device_setting_id = '".$s['id']."'"
+        );
+
+        $chart_data = mysqli_fetch_assoc($q_chart);
+
+        $s['is_chart']    = $chart_data ? true : false;
+        $s['chart_order'] = $chart_data ? $chart_data['chart_order'] : 10;
+        $s['chart_data']  = $chart_data ? $chart_data['data'] : '';
+
+        $settings[] = $s;
+    }
+
+    // ================================
+    // Ambil tinggi sensor (AWLR)
+    // ================================
+    $awlr_height = 0;
+    $q_h = mysqli_query(
+        $conn,
+        "SELECT tinggi_sensor 
+         FROM device_settings 
+         WHERE device_unique_id = '$did'
+         LIMIT 1"
+    );
+
+    if ($r_h = mysqli_fetch_assoc($q_h)) {
+        $awlr_height = $r_h['tinggi_sensor'];
+    }
+
+    // ================================
+    // Ambil timezone, status, dan type device
+    // ================================
+    $timezone = 'UTC';
+    $statusAlat = '';
+    $device_type = '';
+
+    $q_device = mysqli_query(
+        $conn,
+        "SELECT timezone, status, device_type 
+         FROM user_devices 
+         WHERE device_unique_id = '$did'
+         LIMIT 1"
+    );
+
+    if ($r_dev = mysqli_fetch_assoc($q_device)) {
+        $timezone   = $r_dev['timezone'];
+        $statusAlat = $r_dev['status'];
+        $device_type = $r_dev['device_type'];
+    }
+
+    // ================================
+    // Jika device AWLR → ambil config tambahan
+    // ================================
+    if ($device_type === 'awlr' ||$device_type === 'AWLR') {
+
+        $q_config = mysqli_query(
+            $conn,
+            "SELECT parameter_name, unit 
+             FROM device_settings 
+             WHERE device_unique_id = '$did' 
+             AND category = 'config'
+             LIMIT 1"
+        );
+
+        $data_config = mysqli_fetch_assoc($q_config);
+
+        echo json_encode([
+            "status"          => true,
+            "timezone"        => $timezone,
+            "statusAlat"      => $statusAlat,
+            "settings"        => $settings,
+            "awlr_height"     => $awlr_height,
+            "awlrData"        => $data_config['parameter_name'] ?? null,
+            "awlrStatusData"  => $data_config['unit'] ?? null
+        ]);
+        exit;
+    }
+
+    // ================================
+    // Jika BUKAN AWLR
+    // ================================
+    echo json_encode([
+        "status"       => true,
+        "timezone"     => $timezone,
+        "statusAlat"   => $statusAlat,
+        "settings"     => $settings,
+        "awlr_height"  => $awlr_height
+    ]);
+    exit;
+}
+
+
+  // 3. Get All Users (Default)
+$users = [];
+$q = mysqli_query($conn, "
+    SELECT 
+        u.id, 
+        u.username, 
+        d.device_type, 
+        d.device_unique_id, 
+        d.owner_name, 
+        d.city,
+        d.status
+    FROM users u 
+    JOIN user_devices d ON u.id = d.user_id 
+    WHERE u.role = 'user'
+    ORDER BY u.id DESC
+");
+
+while ($row = mysqli_fetch_assoc($q)) {
+    $users[] = $row;
+}
+
+/* =========================
+   GET STATUS DEVICE SETTINGS
+   ========================= */
+$status = [
+    "aktif"     => 0,
+    "nonaktif"  => 0
+];
+
+$qs = mysqli_query($conn, "
+    SELECT 
+        SUM(status = 1) AS aktif,
+        SUM(status = 0) AS nonaktif
+    FROM user_devices
+");
+
+if ($row = mysqli_fetch_assoc($qs)) {
+    $status['aktif']    = (int)$row['aktif'];
+    $status['nonaktif'] = (int)$row['nonaktif'];
+}
+
+/* =========================
+   RESPONSE JSON
+   ========================= */
+echo json_encode([
+    "device_status" => $status,
+    "status" => true,
+    "data"   => $users
+    
+]);
+exit();
+
+}
+
+// B. POST ACTIONS (Add, Update, Delete)
+if ($method === 'POST') {
+    
+    // 1. ADD NEW USER & DEVICE
+    if ($action === 'create_user') {
+        $username = mysqli_real_escape_string($conn, $input['username']);
+        $password = password_hash($input['password'], PASSWORD_DEFAULT);
+        
+        // Cek Username
+        $cek = mysqli_query($conn, "SELECT id FROM users WHERE username='$username'");
+        if(mysqli_num_rows($cek) > 0){
+            echo json_encode(["status"=>false, "message"=>"Username sudah ada"]); exit();
+        }
+
+        // Insert User
+        $conn->query("INSERT INTO users (username, password, role) VALUES ('$username', '$password', 'user')");
+        $new_uid = $conn->insert_id;
+
+        // Insert Device
+        $dev_name = mysqli_real_escape_string($conn, $input['dev_name']);
+        $dev_id   = mysqli_real_escape_string($conn, $input['dev_id']);
+        $dev_type = mysqli_real_escape_string($conn, $input['dev_type']);
+        $owner    = mysqli_real_escape_string($conn, $input['owner']);
+        $city     = mysqli_real_escape_string($conn, $input['city']);
+        $loc      = mysqli_real_escape_string($conn, $input['location']);
+        $inet     = mysqli_real_escape_string($conn, $input['internet_no']);
+        $pic      = mysqli_real_escape_string($conn, $input['pic_contact']);
+        $pic_name = mysqli_real_escape_string($conn, $input['pic_name']);
+        $timezone = mysqli_real_escape_string($conn, $input['timezone']);
+
+        $sql_dev = "INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic,timezone) 
+                    VALUES ('$new_uid', '$dev_name', '$owner', '$city', '$loc', '$inet', '$pic', '$dev_type', '$dev_id', '$pic_name','$timezone')";
+        
+        if(!$conn->query($sql_dev)){
+            echo json_encode(["status"=>false, "message"=>"Gagal insert device: ".$conn->error]); exit();
+        }
+
+        // Insert Params
+        if(isset($input['params']) && is_array($input['params'])){
+            foreach($input['params'] as $idx => $p){
+                $label = mysqli_real_escape_string($conn, $p['label']);
+                $topic = mysqli_real_escape_string($conn, $p['topic']);
+                $unit  = mysqli_real_escape_string($conn, $p['unit']);
+                $d_key = mysqli_real_escape_string($conn, $p['data_key']);
+                $order = $idx + 1;
+                
+                $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) 
+                              VALUES ('$dev_id', '$label', '$topic', '$unit', '$order', 1, 'sensor')");
+                $sid = $conn->insert_id;
+
+                if(!empty($d_key)){
+                    $conn->query("INSERT INTO user_sensor_charts (user_id, device_unique_id, device_setting_id, chart_order, is_active, data) 
+                                  VALUES ('$new_uid', '$dev_id', '$sid', '$order', 1, '$d_key')");
+                }
+            }
+        }
+
+        // Default Power Settings
+        $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) VALUES ('$dev_id', 'Tegangan', 'temins_iot/$dev_id/data/tsp', 'V', 100, 1, 'power')");
+        $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) VALUES ('$dev_id', 'Arus Charging', 'temins_iot/$dev_id/data/ac', 'mA', 101, 1, 'power')");
+         $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) VALUES ('$dev_id', 'daya', 'temins_iot/$dev_id/data/da', 'watt', 101, 1, 'power')");
+
+        // AWLR Config
+        if(strtoupper($dev_type) == 'AWLR') {
+             $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name,  tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES ('$dev_id', 'tuc', '400', '1', 0, 'config', 'config')");
+        }
+
+        echo json_encode(["status"=>true, "message"=>"User berhasil dibuat"]);
+        exit();
+    }
+
+   if ($action === 'update_config') {
+
+    $dev_id = mysqli_real_escape_string($conn, $input['device_unique_id']);
+    $uid    = mysqli_real_escape_string($conn, $input['user_id']);
+    $params = $input['params']; // Array of objects
+
+    /* =========================
+       UPDATE TIMEZONE DEVICE
+       ========================= */
+    if (isset($input['timezone']) && !empty($input['timezone'])) {
+        $timezone = mysqli_real_escape_string($conn, $input['timezone']);
+        $statusAlat = mysqli_real_escape_string($conn, $input['statusAlat']);
+
+        $conn->query("
+            UPDATE user_devices 
+            SET timezone = '$timezone',
+             status   = '$statusAlat'
+            WHERE device_unique_id = '$dev_id'
+        ");
+    }
+
+
+/////////////update baris data awlr dan status
+
+
+if (
+        isset($input['awlrData']) &&
+        isset($input['awlrStatusData'])
+    ) {
+        $parameter_name = mysqli_real_escape_string($conn, $input['awlrData']);
+        $unit = mysqli_real_escape_string($conn, $input['awlrStatusData']);
+
+        $conn->query("
+            UPDATE device_settings
+            SET 
+                parameter_name = '$parameter_name',
+                unit = '$unit'
+            WHERE device_unique_id = '$dev_id'
+              AND category = 'config'
+            LIMIT 1
+        ");
+    }
+
+
+
+    /* =========================
+       UPDATE AWLR HEIGHT
+       ========================= */
+    if (isset($input['awlr_height'])) {
+        $h = mysqli_real_escape_string($conn, $input['awlr_height']);
+
+        $conn->query("
+            UPDATE device_settings 
+            SET tinggi_sensor = '$h'
+            WHERE device_unique_id = '$dev_id'
+        ");
+    }
+
+    /* =========================
+       RESET CHART CONFIG
+       ========================= */
+    $conn->query("
+        DELETE FROM user_sensor_charts 
+        WHERE device_unique_id = '$dev_id'
+    ");
+
+    /* =========================
+       UPDATE / INSERT PARAMS
+       ========================= */
+    $processed_ids = [];
+
+    foreach ($params as $idx => $p) {
+
+        $label = mysqli_real_escape_string($conn, $p['label']);
+        $topic = mysqli_real_escape_string($conn, $p['topic']);
+        $unit  = mysqli_real_escape_string($conn, $p['unit']);
+        $vis   = !empty($p['is_visible']) ? 1 : 0;
+        $order = $idx + 1;
+
+        $setting_id = 0;
+
+        if (!empty($p['id'])) {
+            // Update Existing Parameter
+            $sid = mysqli_real_escape_string($conn, $p['id']);
+
+            $conn->query("
+                UPDATE device_settings 
+                SET 
+                    parameter_name = '$label',
+                    mqtt_topic     = '$topic',
+                    unit           = '$unit',
+                    is_visible     = '$vis',
+                    display_order  = '$order'
+                WHERE id = '$sid'
+            ");
+
+            $setting_id = $sid;
+            $processed_ids[] = $sid;
+
+        } else {
+            // Insert New Parameter
+            $conn->query("
+                INSERT INTO device_settings 
+                (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category)
+                VALUES 
+                ('$dev_id', '$label', '$topic', '$unit', '$order', '$vis', 'sensor')
+            ");
+
+            $setting_id = $conn->insert_id;
+        }
+
+        /* =========================
+           HANDLE CHART
+           ========================= */
+        if (!empty($p['is_chart'])) {
+
+            $d_key = mysqli_real_escape_string($conn, $p['chart_data']);
+            $c_ord = (int)$p['chart_order'];
+
+            $conn->query("
+                INSERT INTO user_sensor_charts 
+                (user_id, device_unique_id, device_setting_id, chart_order, is_active, data)
+                VALUES 
+                ('$uid', '$dev_id', '$setting_id', '$c_ord', 1, '$d_key')
+            ");
+        }
+    }
+
+    echo json_encode([
+        "status"  => true,
+        "message" => "Konfigurasi device berhasil diupdate"
+    ]);
+    exit();
+}
+
+
+    // 3. DELETE PARAMETER (Specific)
+    if ($action === 'delete_param') {
+        $id = mysqli_real_escape_string($conn, $input['id']);
+        $conn->query("DELETE FROM user_sensor_charts WHERE device_setting_id='$id'");
+        $conn->query("DELETE FROM device_settings WHERE id='$id'");
+        echo json_encode(["status"=>true, "message"=>"Parameter dihapus"]);
+        exit();
+    }
+
+    // 4. CHANGE PASSWORD
+    if ($action === 'change_password') {
+        $uid = $input['user_id'];
+        $pass = password_hash($input['new_password'], PASSWORD_DEFAULT);
+        $conn->query("UPDATE users SET password='$pass' WHERE id='$uid'");
+        echo json_encode(["status"=>true, "message"=>"Password diubah"]);
+        exit();
+    }
+
+    // 5. DELETE USER (Full)
+    if ($action === 'delete_user') {
+        $uid = mysqli_real_escape_string($conn, $input['user_id']);
+        $did = mysqli_real_escape_string($conn, $input['device_unique_id']);
+        
+        $conn->query("DELETE FROM user_sensor_charts WHERE device_unique_id='$did'");
+        $conn->query("DELETE FROM sensor_logs WHERE device_unique_id='$did'");
+        $conn->query("DELETE FROM device_settings WHERE device_unique_id='$did'");
+        $conn->query("DELETE FROM user_devices WHERE user_id='$uid'");
+        $conn->query("DELETE FROM users WHERE id='$uid'");
+        
+        echo json_encode(["status"=>true, "message"=>"User dihapus total"]);
+        exit();
+    }
+}
+?>
