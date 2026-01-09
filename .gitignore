@@ -1,2 +1,2 @@
-/api-app/db/sql.php
-/api-app/config.php
+/api-app/db/*
+/api-app/config.php/
