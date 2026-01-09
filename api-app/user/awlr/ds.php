@@ -157,7 +157,8 @@ echo json_encode([
         "data" => $data_config['parameter_name'],
         "statusData" => $data_config['unit'],
        "grafik" => $grafik_data,
-       "lokasi" => $device['location']
+       "lokasiiii" => $device['location'],
+       "owner" => $device['owner_name']
     ],
     "mqtt" => [
         "topics" => $topics_to_subscribe,
