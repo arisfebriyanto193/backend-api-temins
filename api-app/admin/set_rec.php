@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$dataFile = '../../rekam-data/py/1.json';
+$dataFile = '/rekam-data/py/1.json';
 
 // --- SETUP ---
 if (!is_dir(dirname($dataFile))) {

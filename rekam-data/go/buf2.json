@@ -1,0 +1,1787 @@
+{
+    "0011|aa": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 311.8,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|ac": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 1186.7,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|ch": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|cha": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|chr": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|ka": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 3.3,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|kam": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 3.6,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|ku": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 54.67,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|rm": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 95905.83,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|sm": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|su": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 33.32,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|sur": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|tb": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|tsp": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.66,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|tt": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 44.02,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0011|tu": {
+        "device_id": "0011",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1007.97,
+        "timestamp": "2026-01-10 09:39:09"
+    },
+    "0012|ac": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "ac",
+        "value": 1330.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0012|sm": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0012|sur": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "sur",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0012|ta": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "ta",
+        "value": 6,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0012|tb": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0012|tsp": {
+        "device_id": "0012",
+        "device_type": "awlr",
+        "parameter": "tsp",
+        "value": 14.05,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|aa": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 316,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ac": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 1076.1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ch": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|cha": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|chr": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ka": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 0.78,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|kam": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 0.78,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ku": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 76.87,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ku2": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 76.3,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|ku3": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 100,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|rm": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 435,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|sm": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|su": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 26.8,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|su2": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 26.9,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|su3": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 29.19,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|sur": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|tb": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|tsp": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 12.85,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|tt": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 129.74,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|tu": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 997.76,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0021|tu2": {
+        "device_id": "0021",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 995,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|aa": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 260,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ac": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 820.6,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ch": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|cha": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|chr": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|da": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 11056,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ka": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 1.83,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|kam": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 1.83,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ku": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 84.85,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ku2": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 90,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|ku3": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 89.75,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|rm": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 452,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|sm": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|su": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 26.28,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|su2": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 25.8,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|su3": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 26.94,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|sur": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 36,
+        "timestamp": "2026-01-10 09:39:19"
+    },
+    "0022|tb": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|tsp": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.56,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|tt": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 48.43,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|tu": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1007.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0022|tu2": {
+        "device_id": "0022",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 1004,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|aa": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 277,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ac": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 263.3,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ch": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|cha": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|chr": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ka": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 4.21,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|kam": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 4.21,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ku": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 70.41,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ku2": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 69.9,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|ku3": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 52.62,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|rm": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 308,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|su": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 28.83,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|su2": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 28.9,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|su3": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 33.58,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|tb": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|tsp": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.07,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|tt": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 157.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|tu": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 994.48,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0024|tu2": {
+        "device_id": "0024",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 992,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0025|aa": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|ac": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 541,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|ch": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|cha": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|chr": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|ka": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|kam": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|ku": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 65.64,
+        "timestamp": "2026-01-10 09:39:20"
+    },
+    "0025|ku2": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|rm": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|sm": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|su": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 30.33,
+        "timestamp": "2026-01-10 09:39:20"
+    },
+    "0025|su2": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:20"
+    },
+    "0025|sur": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|tb": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|tsp": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 12.52,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0025|tu2": {
+        "device_id": "0025",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:20"
+    },
+    "0026|aa": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 7,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ac": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 13.8,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ch": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|cha": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|chr": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0.2,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|da": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 190,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ka": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 2.13,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|kam": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 2.13,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ku": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 72.45,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ku2": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 63.3,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|ku3": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 100,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|rm": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 1192,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|sm": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|su": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 30.59,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|su2": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 32,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|su3": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 30.8,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|sur": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 42.25,
+        "timestamp": "2026-01-10 09:37:34"
+    },
+    "0026|tb": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|tsp": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.9,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|tt": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 0.81,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|tu": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1013.15,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0026|tu2": {
+        "device_id": "0026",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 1011,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|aa": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 270,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ac": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 12.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ch": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|cha": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|chr": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0.4,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|da": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 174,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ka": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 13.1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|kam": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 13.1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ku": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 66.9,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ku2": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 64.2,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|ku3": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 59.25,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|rm": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 1188,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|sm": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|su": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 28.97,
+        "timestamp": "2026-01-10 09:39:20"
+    },
+    "0027|su2": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 30,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|su3": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 29.44,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|sur": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 38.75,
+        "timestamp": "2026-01-10 09:38:05"
+    },
+    "0027|tb": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|tsp": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 14.04,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|tt": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 806.03,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|tu": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 920.11,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0027|tu2": {
+        "device_id": "0027",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 919,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|aa": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ac": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 812.7,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ch": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 1.6,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|cha": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 1.6,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|chr": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 1.6,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|da": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 10348,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ka": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|kam": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ku": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ku2": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 81.6,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|ku3": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|rm": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 327,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|sm": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|su": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|su2": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 22,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|su3": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|sur": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 32.5,
+        "timestamp": "2026-01-10 09:38:14"
+    },
+    "0028|tb": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|tsp": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 12.82,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|tt": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 44330,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|tu": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0028|tu2": {
+        "device_id": "0028",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 867,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0029|aa": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 321,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ac": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 1660,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ch": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 1.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|cha": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 1.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|chr": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 1.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|da": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 23848,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ka": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 1.55,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|kam": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 1.55,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ku": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 66.83,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ku2": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 69.6,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|ku3": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 64.98,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|rm": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 848,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|sm": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|su": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 31.23,
+        "timestamp": "2026-01-10 09:39:19"
+    },
+    "0029|su2": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 30.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|su3": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 32.41,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|sur": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 42.5,
+        "timestamp": "2026-01-10 09:38:24"
+    },
+    "0029|tb": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|tsp": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 14.52,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|tt": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 16.61,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|tu": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1011.26,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0029|tu2": {
+        "device_id": "0029",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 997,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0030|aa": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 349,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ac": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 5.5,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ch": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|cha": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|chr": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|da": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 72,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ka": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 1.98,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|kam": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 1.98,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ku": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 71.72,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ku2": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 72.3,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|ku3": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 74.92,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|rm": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 479,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|sm": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|su": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 29.24,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0030|su2": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 28.8,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|su3": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 29.62,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|sur": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 41,
+        "timestamp": "2026-01-10 09:39:12"
+    },
+    "0030|tb": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|tsp": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.07,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|tt": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 70.52,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|tu": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1004.81,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0030|tu2": {
+        "device_id": "0030",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 1002,
+        "timestamp": "2026-01-10 09:39:21"
+    },
+    "0032|aa": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 338,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ac": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 1173,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ch": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|cha": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|chr": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|da": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 15326,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ka": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 3,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|kam": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 3,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ku": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 78.81,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ku2": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 78.8,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|ku3": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 71.98,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|rm": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 479,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|sm": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|su": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 27.04,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|su2": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 27.2,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|su3": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 27.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|sur": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 40.25,
+        "timestamp": "2026-01-10 09:39:12"
+    },
+    "0032|tb": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|tsp": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.18,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|tt": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 325.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|tu": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 974.77,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0032|tu2": {
+        "device_id": "0032",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 972,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|aa": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "aa",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ac": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ac",
+        "value": 5.3,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ch": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ch",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|cha": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "cha",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|chr": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "chr",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|da": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "da",
+        "value": 68,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ka": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ka",
+        "value": 1.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|kam": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "kam",
+        "value": 1.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ku": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ku",
+        "value": 66.25,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ku2": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ku2",
+        "value": 64,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|ku3": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "ku3",
+        "value": 56.54,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|rm": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "rm",
+        "value": 1118,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|sm": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "sm",
+        "value": 1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|su": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "su",
+        "value": 32.4,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|su2": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "su2",
+        "value": 33,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|su3": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "su3",
+        "value": 33.06,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|sur": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "sur",
+        "value": 42,
+        "timestamp": "2026-01-10 09:39:04"
+    },
+    "0034|tb": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "tb",
+        "value": 0,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|tsp": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "tsp",
+        "value": 13.1,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|tt": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "tt",
+        "value": 57.45,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|tu": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "tu",
+        "value": 1006.37,
+        "timestamp": "2026-01-10 09:39:22"
+    },
+    "0034|tu2": {
+        "device_id": "0034",
+        "device_type": "aws",
+        "parameter": "tu2",
+        "value": 1005,
+        "timestamp": "2026-01-10 09:39:22"
+    }
+}
