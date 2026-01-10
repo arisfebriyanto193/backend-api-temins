@@ -1,0 +1,217 @@
+{
+    "device_type": {
+        "aws": {
+            "def_topic": [
+                "su",
+                "ku",
+                "tu",
+                "su2",
+                "tu2",
+                "ku2",
+                "su3",
+                "ku3",
+                "tt",
+                "ka",
+                "aa",
+                "rm",
+                "ch",
+                "kam",
+                "cha",
+                "chr",
+                "tsp",
+                "tb",
+                "ac",
+                "da",
+                "sm",
+                "sur"
+            ],
+            "devices": [
+                {
+                    "dev_id": "0011",
+                    "use_default": true
+                },
+                {
+                    "dev_id": "0015",
+                    "use_default": true
+                },
+                {
+                    "dev_id": "0021",
+                    "use_default": true
+                },
+                {
+                    "dev_id": "0022",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0023",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0026",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0024",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0031",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0019",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0025",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0027",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0028",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0029",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0030",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0031",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0032",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0033",
+                    "use_default": true
+                },
+                {
+                    "dev_id": "0034",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0035",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0100",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "1253",
+                    "use_default": false,
+                    "topic": [
+                        "su",
+                        "ku21",
+                        "tu2",
+                        "su4",
+                        "tu2",
+                        "ku2",
+                        "su3",
+                        "ku3",
+                        "tt",
+                        "ka",
+                        "aa",
+                        "rm",
+                        "ch",
+                        "kam",
+                        "cha",
+                        "chr",
+                        "tsp",
+                        "tb",
+                        "ac",
+                        "da",
+                        "sm",
+                        "sur"
+                    ]
+                },
+                {
+                    "dev_id": "1252",
+                    "use_default": false,
+                    "topic": [
+                        "1",
+                        "2",
+                        "3",
+                        "g"
+                    ]
+                }
+            ]
+        },
+        "awlr": {
+            "def_topic": [
+                "tum",
+                "tuc",
+                "tac",
+                "tam",
+                "bat",
+                "ta"
+            ],
+            "devices": [
+                {
+                    "dev_id": "3345",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0098",
+                    "use_default": true,
+                    "topic": []
+                },
+                {
+                    "dev_id": "0012",
+                    "use_default": true,
+                    "topic": []
+                }
+            ]
+        },
+        "Smart_farming": {
+            "def_topic": [
+                "st",
+                "kt",
+                "pht",
+                "ec",
+                "tds",
+                "kdt",
+                "n",
+                "p",
+                "k",
+                "g",
+                "tsp",
+                "ac",
+                "da"
+            ],
+            "devices": [
+                {
+                    "dev_id": "4452",
+                    "use_default": true,
+                    "topic": []
+                }
+            ]
+        }
+    }
+}
