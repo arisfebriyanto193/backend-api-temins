@@ -53,6 +53,7 @@ var (
 	sensorHeightCache   = make(map[string]float64)
 	lastFileModTime     time.Time
 	mqttMessageCount    int64
+	awlrCalculationCount int64
 	mqttConnected       bool
 )
 
@@ -206,6 +207,15 @@ func getAllSensorHeightsFromMySQL() map[string]float64 {
 	}
 	
 	log.Printf("✅ [MySQL] Successfully loaded %d devices into cache\n", len(mysqlData))
+	
+	// Print cache contents for debugging
+	if len(mysqlData) > 0 {
+		log.Println("📋 [MySQL] Cache contents:")
+		for devID, height := range mysqlData {
+			log.Printf("   - %s: %.2f cm\n", devID, height)
+		}
+	}
+	
 	return mysqlData
 }
 
@@ -246,11 +256,20 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 	}
 	
 	// Log setiap data yang masuk
-//	log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
-//		deviceID, deviceType, parameter, value)
+	log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
+		deviceID, deviceType, parameter, value)
 	
-	// AWLR Calculation
+	// AWLR Calculation - ENHANCED LOGGING
 	if strings.ToLower(deviceType) == "awlr" && parameter == "tuc" {
+		// Check cache first
+		cacheLock.RLock()
+		cacheSize := len(sensorHeightCache)
+		_, existsInCache := sensorHeightCache[deviceID]
+		cacheLock.RUnlock()
+		
+		log.Printf("🔍 [AWLR-DEBUG] Checking for device %s: cache_size=%d, exists=%v\n", 
+			deviceID, cacheSize, existsInCache)
+		
 		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 			tinggiAir := tinggiSensor - value
 			
@@ -263,16 +282,35 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 				Timestamp:  formatWIBTimestamp(getWIBTime()),
 			}
 			
-			log.Printf("🌊 [AWLR] Calculated: Device=%s, TUC=%.2f cm, Sensor Height=%.2f cm, Water Level=%.2f cm\n", 
-				deviceID, value, tinggiSensor, tinggiAir)
+			awlrCalculationCount++
+			
+			log.Printf("🌊 [AWLR] Calculation #%d SUCCESS:\n", awlrCalculationCount)
+			log.Printf("   Device: %s\n", deviceID)
+			log.Printf("   TUC: %.2f cm\n", value)
+			log.Printf("   Sensor Height: %.2f cm\n", tinggiSensor)
+			log.Printf("   Water Level: %.2f cm\n", tinggiAir)
+			log.Printf("   Buffer Key: %s\n", airKey)
 		} else {
-			log.Printf("⚠️ [AWLR] Device=%s not found in cache, cannot calculate water level\n", deviceID)
+			log.Printf("⚠️ [AWLR] FAILED: Device=%s not found in cache\n", deviceID)
+			log.Printf("   Available devices in cache: %d\n", cacheSize)
+			
+			// Print all cache keys for debugging
+			cacheLock.RLock()
+			if cacheSize > 0 && cacheSize <= 10 {
+				log.Println("   Cache contains:")
+				for id := range sensorHeightCache {
+					log.Printf("     - %s\n", id)
+				}
+			}
+			cacheLock.RUnlock()
 		}
 	}
 	
 	if jsonData, err := json.MarshalIndent(data, "", "    "); err == nil {
 		if err := ioutil.WriteFile(BUFFER_FILE_PATH, jsonData, 0644); err != nil {
 			log.Printf("❌ [BUFFER] Write error: %v\n", err)
+		} else {
+			log.Printf("💾 [BUFFER] File updated successfully, total entries: %d\n", len(data))
 		}
 	}
 }
@@ -282,22 +320,40 @@ func readAndClearBuffer() []BufferData {
 	defer fileLock.Unlock()
 	
 	if _, err := os.Stat(BUFFER_FILE_PATH); os.IsNotExist(err) {
+		log.Println("⚠️ [BUFFER] File does not exist")
 		return []BufferData{}
 	}
 	
 	fileData, err := ioutil.ReadFile(BUFFER_FILE_PATH)
 	if err != nil {
+		log.Printf("❌ [BUFFER] Read error: %v\n", err)
 		return []BufferData{}
 	}
 	
+	// Log buffer content before clearing
+	log.Printf("📄 [BUFFER] Content before flush:\n%s\n", string(fileData))
+	
 	dataMap := make(map[string]BufferData)
 	if err := json.Unmarshal(fileData, &dataMap); err != nil {
+		log.Printf("❌ [BUFFER] Parse error: %v\n", err)
 		return []BufferData{}
+	}
+	
+	log.Printf("📊 [BUFFER] Entries to flush: %d\n", len(dataMap))
+	
+	// Log each entry
+	for key, entry := range dataMap {
+		log.Printf("   - Key: %s | Device: %s | Param: %s | Value: %.2f\n", 
+			key, entry.DeviceID, entry.Parameter, entry.Value)
 	}
 	
 	// Clear file
 	emptyData, _ := json.Marshal(map[string]interface{}{})
-	ioutil.WriteFile(BUFFER_FILE_PATH, emptyData, 0644)
+	if err := ioutil.WriteFile(BUFFER_FILE_PATH, emptyData, 0644); err != nil {
+		log.Printf("❌ [BUFFER] Clear error: %v\n", err)
+	} else {
+		log.Println("🧹 [BUFFER] File cleared successfully")
+	}
 	
 	// Convert map to slice
 	result := make([]BufferData, 0, len(dataMap))
@@ -350,7 +406,8 @@ func updateConfigFromJSON() (map[string]bool, map[string]string) {
 				params[p] = true
 			}
 			
-			log.Printf("      📱 Device ID: %s | Parameters: %v\n", dev.DevID, getKeys(params))
+			log.Printf("      📱 Device ID: %s | Type: %s | Parameters: %v\n", 
+				dev.DevID, typeName, getKeys(params))
 			
 			for param := range params {
 				topic := fmt.Sprintf("temins_iot/%s/data/%s", dev.DevID, param)
@@ -408,9 +465,9 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	
 	// Log setiap message yang diterima
-//	log.Printf("\n📨 [MQTT] Message #%d received:\n", mqttMessageCount)
-//	log.Printf("   Topic: %s\n", topic)
-//	log.Printf("   Payload: %s\n", payload)
+	log.Printf("\n📨 [MQTT] Message #%d received:\n", mqttMessageCount)
+	log.Printf("   Topic: %s\n", topic)
+	log.Printf("   Payload: %s\n", payload)
 	
 	parts := strings.Split(topic, "/")
 	if len(parts) < 4 || parts[2] != "data" {
@@ -421,8 +478,19 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	deviceID := parts[1]
 	parameter := parts[len(parts)-1]
 	
-//	log.Printf("   Device ID: %s\n", deviceID)
-//	log.Printf("   Parameter: %s\n", parameter)
+	log.Printf("   Device ID: %s\n", deviceID)
+	log.Printf("   Parameter: %s\n", parameter)
+	
+	// Check device type
+	mapLock.RLock()
+	deviceType, deviceExists := deviceMap[deviceID]
+	mapLock.RUnlock()
+	
+	if deviceExists {
+		log.Printf("   Device Type: %s\n", deviceType)
+	} else {
+		log.Printf("   ⚠️ Device not in config map\n")
+	}
 	
 	var value float64
 	
@@ -453,7 +521,7 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 		}
 	}
 	
-//	log.Printf("   ✅ Parsed Value: %.2f\n", value)
+	log.Printf("   ✅ Parsed Value: %.2f\n", value)
 	
 	saveToBufferFile(deviceID, parameter, value)
 }
@@ -474,11 +542,16 @@ func flushToDB() {
 		batchTimestamp := getRounded5MinTimestamp()
 		batchTimestampStr := formatWIBTimestamp(batchTimestamp)
 		
+		log.Println("\n" + strings.Repeat("=", 70))
+		log.Printf("⏰ [DB] FLUSH TRIGGERED at %s WIB\n", batchTimestampStr)
+		log.Println(strings.Repeat("=", 70))
+		
 		dataToSave := readAndClearBuffer()
 		
 		if len(dataToSave) == 0 {
 			log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
 			log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
+			log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
 			log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
 		} else {
 			db, err := sql.Open("postgres", POSTGRES_DSN)
@@ -487,31 +560,55 @@ func flushToDB() {
 			} else {
 				defer db.Close()
 				
-				tx, _ := db.Begin()
-				stmt, _ := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
-				
-				for _, d := range dataToSave {
-					stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
+				tx, err := db.Begin()
+				if err != nil {
+					log.Printf("❌ [DB] Transaction error: %v\n", err)
+				} else {
+					stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
+					if err != nil {
+						log.Printf("❌ [DB] Prepare error: %v\n", err)
+						tx.Rollback()
+					} else {
+						successCount := 0
+						failCount := 0
+						
+						for _, d := range dataToSave {
+							_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
+							if err != nil {
+								log.Printf("❌ [DB] Insert failed for %s|%s: %v\n", d.DeviceID, d.Parameter, err)
+								failCount++
+							} else {
+								successCount++
+							}
+						}
+						
+						stmt.Close()
+						
+						if err := tx.Commit(); err != nil {
+							log.Printf("❌ [DB] Commit error: %v\n", err)
+						} else {
+							log.Println("\n💾 DATABASE PERSISTENCE REPORT")
+							log.Printf("🕐 Timestamp (WIB): %s\n", batchTimestampStr)
+							log.Printf("📊 Total: %d records (%d success, %d failed)\n", len(dataToSave), successCount, failCount)
+							
+							for _, d := range dataToSave {
+								emoji := "✅"
+								if strings.Contains(d.Parameter, "result_tinggi_air") {
+									emoji = "🌊"
+								}
+								log.Printf("   %s %s | %s | %s = %.2f\n", emoji, d.DeviceID, d.DeviceType, d.Parameter, d.Value)
+							}
+							
+							log.Println(strings.Repeat("=", 70) + "\n")
+						}
+					}
 				}
-				
-				stmt.Close()
-				tx.Commit()
-				
-				log.Println("\n" + strings.Repeat("=", 70))
-				log.Println("💾 DATABASE PERSISTENCE REPORT")
-				log.Printf("🕐 Timestamp (WIB): %s\n", batchTimestampStr)
-				log.Printf("📊 Total: %d records saved\n", len(dataToSave))
-				
-				for _, d := range dataToSave {
-					log.Printf("   ✅ %s | %s | %s = %.2f\n", d.DeviceID, d.DeviceType, d.Parameter, d.Value)
-				}
-				
-				log.Println(strings.Repeat("=", 70) + "\n")
 			}
 		}
 		
 		nextInterval, secondsToWait = getNext5MinInterval()
-		log.Printf("⏰ [DB] Next flush at: %s WIB\n", formatWIBTimestamp(nextInterval))
+		log.Printf("⏰ [DB] Next flush at: %s WIB (in %.0f seconds)\n\n", 
+			formatWIBTimestamp(nextInterval), secondsToWait.Seconds())
 		time.Sleep(secondsToWait)
 	}
 }
@@ -557,6 +654,8 @@ func autoRefreshSensorCache() {
 		time.Sleep(CACHE_REFRESH_INTERVAL)
 		iteration++
 		
+		log.Printf("\n🔄 [AUTO-REFRESH #%d] Refreshing cache...\n", iteration)
+		
 		mysqlData := getAllSensorHeightsFromMySQL()
 		if len(mysqlData) == 0 {
 			log.Printf("⚠️ [AUTO-REFRESH #%d] No data from MySQL\n", iteration)
@@ -567,7 +666,7 @@ func autoRefreshSensorCache() {
 		sensorHeightCache = mysqlData
 		cacheLock.Unlock()
 		
-		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n", iteration, len(mysqlData))
+		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n\n", iteration, len(mysqlData))
 	}
 }
 
@@ -583,8 +682,8 @@ func statusMonitor() {
 		cacheCount := len(sensorHeightCache)
 		cacheLock.RUnlock()
 		
-		log.Printf("\n📊 [STATUS] Messages: %d | Devices: %d | Cache: %d | Connected: %v\n\n",
-			mqttMessageCount, deviceCount, cacheCount, mqttConnected)
+		log.Printf("\n📊 [STATUS] Messages: %d | AWLR Calc: %d | Devices: %d | Cache: %d | Connected: %v\n\n",
+			mqttMessageCount, awlrCalculationCount, deviceCount, cacheCount, mqttConnected)
 	}
 }
 
@@ -601,7 +700,7 @@ func main() {
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
 	
 	log.Println("\n" + strings.Repeat("=", 70))
-	log.Println("🚀 TEMINS IoT Logger - Go Version (DEBUG MODE)")
+	log.Println("🚀 TEMINS IoT Logger - Go Version (ENHANCED DEBUG MODE)")
 	log.Println(strings.Repeat("=", 70))
 	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
 	log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
@@ -630,7 +729,7 @@ func main() {
 	cacheLock.Lock()
 	sensorHeightCache = initialData
 	cacheLock.Unlock()
-	log.Printf("✅ [INIT] Loaded %d devices\n\n", len(initialData))
+	log.Printf("✅ [INIT] Loaded %d devices into cache\n\n", len(initialData))
 	
 	// MQTT setup with enhanced logging
 	mqtt.ERROR = log.New(os.Stdout, "[MQTT-ERROR] ", log.LstdFlags)
