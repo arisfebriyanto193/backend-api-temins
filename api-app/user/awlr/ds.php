@@ -122,7 +122,17 @@ $q_config = mysqli_query(
      AND category = 'config'"
 );
 
+
+$q_config2 = mysqli_query(
+    $conn,
+    "SELECT category
+     FROM device_settings 
+     WHERE device_unique_id = '$device_unique_id' 
+     AND mqtt_topic = 'jenis'"
+);
+
 $data_config = mysqli_fetch_assoc($q_config);
+$data_config2 = mysqli_fetch_assoc($q_config2);
 
 
 $grafik_data = null;
@@ -157,8 +167,9 @@ echo json_encode([
         "data" => $data_config['parameter_name'],
         "statusData" => $data_config['unit'],
        "grafik" => $grafik_data,
-       "lokasiiii" => $device['location'],
-       "owner" => $device['owner_name']
+       "lokasi" => $device['location'],
+       "owner" => $device['owner_name'],
+       "jenis" => $data_config2['category']
     ],
     "mqtt" => [
         "topics" => $topics_to_subscribe,

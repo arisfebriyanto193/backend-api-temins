@@ -170,8 +170,19 @@ if ($method === 'GET') {
              AND category = 'config'
              LIMIT 1"
         );
+        
+           $q_config2 = mysqli_query(
+            $conn,
+            "SELECT category
+             FROM device_settings 
+             WHERE device_unique_id = '$did' 
+             AND mqtt_topic = 'jenis'
+             LIMIT 1"
+        );
+
 
         $data_config = mysqli_fetch_assoc($q_config);
+        $data_config2 = mysqli_fetch_assoc($q_config2);
 
         echo json_encode([
             "status"          => true,
@@ -180,7 +191,8 @@ if ($method === 'GET') {
             "settings"        => $settings,
             "awlr_height"     => $awlr_height,
             "awlrData"        => $data_config['parameter_name'] ?? null,
-            "awlrStatusData"  => $data_config['unit'] ?? null
+            "awlrStatusData"  => $data_config['unit'] ?? null,
+            "awlrJenis" => $data_config2['category'] ?? 'tidak di ketahui'
         ]);
         exit;
     }
@@ -318,6 +330,7 @@ if ($method === 'POST') {
         // AWLR Config
         if(strtoupper($dev_type) == 'AWLR') {
              $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name,  tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES ('$dev_id', 'tuc', '400', '1', 0, 'config', 'config')");
+             $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name,  tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES ('$dev_id', 'tuc', '400', '1', 0, 'sungai', 'jenis')");
         }
 
         echo json_encode(["status"=>true, "message"=>"User berhasil dibuat"]);
@@ -337,6 +350,7 @@ if ($method === 'POST') {
         $timezone = mysqli_real_escape_string($conn, $input['timezone']);
         $statusAlat = mysqli_real_escape_string($conn, $input['statusAlat']);
 
+
         $conn->query("
             UPDATE user_devices 
             SET timezone = '$timezone',
@@ -350,22 +364,67 @@ if ($method === 'POST') {
 
 
 if (
-        isset($input['awlrData']) &&
-        isset($input['awlrStatusData'])
-    ) {
-        $parameter_name = mysqli_real_escape_string($conn, $input['awlrData']);
-        $unit = mysqli_real_escape_string($conn, $input['awlrStatusData']);
+    isset($input['awlrData'], $input['awlrStatusData'], $input['awlrJenis'])
+) {
+    $parameter_name = $input['awlrData'];
+    $unit           = $input['awlrStatusData'];
+    $awlrJenis      = $input['awlrJenis'];
 
-        $conn->query("
+    $conn->begin_transaction();
+
+    try {
+        // 1. Update config
+        $stmt1 = $conn->prepare("
             UPDATE device_settings
-            SET 
-                parameter_name = '$parameter_name',
-                unit = '$unit'
-            WHERE device_unique_id = '$dev_id'
+            SET parameter_name = ?, unit = ?
+            WHERE device_unique_id = ?
               AND category = 'config'
             LIMIT 1
         ");
+        $stmt1->bind_param("sss", $parameter_name, $unit, $dev_id);
+        $stmt1->execute();
+
+        // 2. Cek apakah mqtt_topic = 'jenis' sudah ada
+        $check = $conn->prepare("
+            SELECT id FROM device_settings
+            WHERE device_unique_id = ?
+              AND mqtt_topic = 'jenis'
+            LIMIT 1
+        ");
+        $check->bind_param("s", $dev_id);
+        $check->execute();
+        $result = $check->get_result();
+
+        if ($result->num_rows > 0) {
+            // UPDATE
+            $update = $conn->prepare("
+                UPDATE device_settings
+                SET category = ?
+                WHERE device_unique_id = ?
+                  AND mqtt_topic = 'jenis'
+                LIMIT 1
+            ");
+            $update->bind_param("ss", $awlrJenis, $dev_id);
+            $update->execute();
+        } else {
+            // INSERT
+            $insert = $conn->prepare("
+                INSERT INTO device_settings
+                (device_unique_id, parameter_name, tinggi_sensor, unit, is_visible, category, mqtt_topic)
+                VALUES (?, 'tuc', '400', '1', 0, ?, 'jenis')
+            ");
+            $insert->bind_param("ss", $dev_id, $awlrJenis);
+            $insert->execute();
+        }
+
+        // 3. Commit sekali saja
+        $conn->commit();
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log($e->getMessage());
     }
+}
 
 
 

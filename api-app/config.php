@@ -1,7 +1,7 @@
 <?php
 $host = "localhost";
 $db   = "temins";
-$user = "root";
+$user = "root1";
 $pass = "06ec30fa";
 
 try {
