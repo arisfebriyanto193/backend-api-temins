@@ -37,7 +37,8 @@ var (
 
 // Database configurations
 const (
-	POSTGRES_DSN = "host=127.0.0.1 port=5432 user=postgres password=example dbname=temins sslmode=disable"
+POSTGRES_DSN = "host=127.0.0.1 port=5432 user=postgres password=example dbname=temins sslmode=disable application_name=rekam-data"
+
 	MYSQL_DSN    = "root:06ec30fa@tcp(127.0.0.1:3306)/temins?parseTime=true&timeout=10s"
 )
 
