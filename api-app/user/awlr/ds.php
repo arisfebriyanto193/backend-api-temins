@@ -169,7 +169,8 @@ echo json_encode([
        "grafik" => $grafik_data,
        "lokasi" => $device['location'],
        "owner" => $device['owner_name'],
-       "jenis" => $data_config2['category']
+       "jenis" => $data_config2['category'],
+       "zonawaktu" => $device['timezone']
     ],
     "mqtt" => [
         "topics" => $topics_to_subscribe,
