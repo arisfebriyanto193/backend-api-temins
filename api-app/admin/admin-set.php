@@ -1,7 +1,7 @@
 <?php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS");
+header("Access-Control-Allow-Methods: GET, POST, DELETE, PUT");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 // ================== PREFLIGHT ==================
@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ================== CONFIG ==================
-$FILE_JSON = __DIR__ . "/app.json";
+$FILE_JSON = __DIR__ . "app.json";
 
 include '../db/sql.php';     // $conn
 include '../auth/jwt.php';   // verify_jwt()
@@ -73,6 +73,55 @@ $action = $_GET['action'] ?? null;
 */
 if ($action === 'admin-users') {
 
+// ---------- PUT CHANGE PASSWORD ----------
+if ($method === 'PUT') {
+    $input = json_decode(file_get_contents("php://input"), true);
+
+    if (
+        empty($input['id']) ||
+        empty($input['password']) ||
+        ($input['type'] ?? '') !== 'change_password'
+    ) {
+        http_response_code(400);
+        echo json_encode([
+            "status" => false,
+            "message" => "Data tidak lengkap"
+        ]);
+        exit();
+    }
+
+    $id = (int) $input['id'];
+    $password = password_hash($input['password'], PASSWORD_BCRYPT);
+
+    // Pastikan admin ada
+    $cek = mysqli_query($conn, "SELECT id FROM users WHERE id=$id AND role='admin'");
+    if (mysqli_num_rows($cek) === 0) {
+        http_response_code(404);
+        echo json_encode([
+            "status" => false,
+            "message" => "Admin tidak ditemukan"
+        ]);
+        exit();
+    }
+
+    // Update password
+    $sql = "UPDATE users SET password='$password' WHERE id=$id";
+
+    if (mysqli_query($conn, $sql)) {
+        echo json_encode([
+            "status" => true,
+            "message" => "Password admin berhasil diubah"
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "Gagal mengubah password"
+        ]);
+    }
+    exit();
+}
+
     // ---------- GET ADMIN USERS ----------
     if ($method === 'GET') {
         $res = mysqli_query($conn, "SELECT id, username, role, diBuat FROM users WHERE role='admin'");
@@ -119,7 +168,66 @@ if ($action === 'admin-users') {
         }
         exit();
     }
+    
+    // ---------- DELETE ADMIN ----------
+if ($method === 'DELETE') {
+    $input = json_decode(file_get_contents("php://input"), true);
+
+    if (empty($input['id'])) {
+        http_response_code(400);
+        echo json_encode([
+            "status" => false,
+            "message" => "ID admin wajib diisi"
+        ]);
+        exit();
+    }
+
+    $id = (int) $input['id'];
+
+    // Pastikan user adalah admin
+    $cek = mysqli_query($conn, "SELECT id FROM users WHERE id=$id AND role='admin'");
+    if (mysqli_num_rows($cek) === 0) {
+        http_response_code(404);
+        echo json_encode([
+            "status" => false,
+            "message" => "Admin tidak ditemukan"
+        ]);
+        exit();
+    }
+
+    // Hitung jumlah admin
+    $countAdmin = mysqli_query($conn, "SELECT COUNT(*) AS total FROM users WHERE role='admin'");
+    $row = mysqli_fetch_assoc($countAdmin);
+
+    if ((int)$row['total'] <= 1) {
+        http_response_code(403);
+        echo json_encode([
+            "status" => false,
+            "message" => "Admin tidak bisa dihapus karena hanya tersisa satu admin"
+        ]);
+        exit();
+    }
+
+    // Hapus admin
+    $sql = "DELETE FROM users WHERE id=$id AND role='admin'";
+
+    if (mysqli_query($conn, $sql)) {
+        echo json_encode([
+            "status" => true,
+            "message" => "Admin berhasil dihapus"
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "Gagal menghapus admin"
+        ]);
+    }
+    exit();
 }
+
+}
+
 
 /*
 |--------------------------------------------------------------------------
