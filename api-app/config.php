@@ -1,8 +1,8 @@
 <?php
 $host = "localhost";
 $db   = "temins";
-$user = "root";
-$pass = "06ec30fa";
+$user = "aris";
+$pass = "Aris@022805";
 
 try {
     $pdo = new PDO(

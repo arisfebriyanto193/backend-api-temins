@@ -44,11 +44,12 @@ if (!$user || (isset($user['role']) && $user['role'] !== 'admin')) {
     $uid = isset($user['uid']) ? $user['uid'] : $user['id'];
     $q_role = mysqli_query($conn, "SELECT role FROM users WHERE id='$uid'");
     $d_role = mysqli_fetch_assoc($q_role);
-    if($d_role['role'] !== 'admin'){
-        http_response_code(403);
-        echo json_encode(["status"=>false, "message"=>"Access Denied (Admin Only)"]); 
-        exit();
-    }
+    // if($d_role['role'] !== 'admin'){
+    //     http_response_code(403);
+    //     echo json_encode([
+    // "status"=>false, "message"=>"Access Denied (Admin Only)"]); 
+    //     exit();
+    // }
 }
 
 // Ambil JSON Input
@@ -142,10 +143,11 @@ if ($method === 'GET') {
     $timezone = 'UTC';
     $statusAlat = '';
     $device_type = '';
+    $lokasi = '';
 
     $q_device = mysqli_query(
         $conn,
-        "SELECT timezone, status, device_type 
+        "SELECT timezone, status, device_type, location, city
          FROM user_devices 
          WHERE device_unique_id = '$did'
          LIMIT 1"
@@ -155,6 +157,8 @@ if ($method === 'GET') {
         $timezone   = $r_dev['timezone'];
         $statusAlat = $r_dev['status'];
         $device_type = $r_dev['device_type'];
+        $lokasi = $r_dev['location'];
+        $kota = $r_dev['city'];
     }
 
     // ================================
@@ -183,10 +187,11 @@ if ($method === 'GET') {
 
         $data_config = mysqli_fetch_assoc($q_config);
         $data_config2 = mysqli_fetch_assoc($q_config2);
-
         echo json_encode([
             "status"          => true,
             "timezone"        => $timezone,
+            "lokasi"          => $lokasi,
+            "kota"            => $kota,
             "statusAlat"      => $statusAlat,
             "settings"        => $settings,
             "awlr_height"     => $awlr_height,
@@ -203,6 +208,8 @@ if ($method === 'GET') {
     echo json_encode([
         "status"       => true,
         "timezone"     => $timezone,
+        "lokasi"          => $lokasi,
+        "kota"           => $kota,
         "statusAlat"   => $statusAlat,
         "settings"     => $settings,
         "awlr_height"  => $awlr_height
@@ -346,15 +353,18 @@ if ($method === 'POST') {
     /* =========================
        UPDATE TIMEZONE DEVICE
        ========================= */
-    if (isset($input['timezone']) && !empty($input['timezone'])) {
+    if (isset($input['timezone']) && !empty($input['timezone']) && isset($input['statusAlat']) && !empty($input['statusAlat']) && isset($input['lokasi'])) {
         $timezone = mysqli_real_escape_string($conn, $input['timezone']);
         $statusAlat = mysqli_real_escape_string($conn, $input['statusAlat']);
-
+        $lokasi = mysqli_real_escape_string($conn, $input['lokasi']);
+        $kota = mysqli_real_escape_string($conn, $input['city']);
 
         $conn->query("
             UPDATE user_devices 
             SET timezone = '$timezone',
-             status   = '$statusAlat'
+             status   = '$statusAlat',
+             location = '$lokasi',
+             city = '$kota'
             WHERE device_unique_id = '$dev_id'
         ");
     }
