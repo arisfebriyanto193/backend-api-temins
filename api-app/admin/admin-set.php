@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ================== CONFIG ==================
-$FILE_JSON = __DIR__ . "app.json";
+$FILE_JSON = __DIR__ . "/app.json";
 
 include '../db/sql.php';     // $conn
 include '../auth/jwt.php';   // verify_jwt()
@@ -253,35 +253,87 @@ if ($action === 'app-config') {
     }
 
     // ---------- POST UPDATE CONFIG ----------
-    if ($method === 'POST') {
-        $input = json_decode(file_get_contents("php://input"), true);
-        if (!$input) {
-            http_response_code(400);
-            echo json_encode(["status"=>false,"message"=>"JSON body tidak valid"]);
-            exit();
-        }
-
-        $old = json_decode(file_get_contents($FILE_JSON), true);
-        $new = array_merge($old, $input);
-
-        $save = file_put_contents(
-            $FILE_JSON,
-            json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-        );
-
-        if ($save === false) {
-            http_response_code(500);
-            echo json_encode(["status"=>false,"message"=>"Gagal menyimpan config"]);
-            exit();
-        }
-
+if ($method === 'POST') {
+    $input = json_decode(file_get_contents("php://input"), true);
+    if ($input === null) {
+        http_response_code(400);
         echo json_encode([
-            "status" => true,
-            "message" => "Config berhasil diperbarui",
-            "data" => $new
+            "status" => false,
+            "message" => "JSON body tidak valid"
         ]);
         exit();
     }
+
+    // Cek file ada
+    if (!file_exists($FILE_JSON)) {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "File config tidak ditemukan",
+            "error" => $FILE_JSON
+        ]);
+        exit();
+    }
+
+    // Cek permission
+    if (!is_writable($FILE_JSON)) {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "File config tidak memiliki izin tulis (permission denied)"
+        ]);
+        exit();
+    }
+
+    $old = json_decode(file_get_contents($FILE_JSON), true);
+    if ($old === null && json_last_error() !== JSON_ERROR_NONE) {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "File config berisi JSON tidak valid",
+            "error" => json_last_error_msg()
+        ]);
+        exit();
+    }
+
+    $new = array_merge($old, $input);
+
+    $json = json_encode(
+        $new,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+    );
+
+    if ($json === false) {
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "Gagal encode JSON",
+            "error" => json_last_error_msg()
+        ]);
+        exit();
+    }
+
+    $save = file_put_contents($FILE_JSON, $json, LOCK_EX);
+
+    if ($save === false) {
+        $error = error_get_last();
+        http_response_code(500);
+        echo json_encode([
+            "status" => false,
+            "message" => "Gagal menyimpan config",
+            "error" => $error['message'] ?? 'Unknown error'
+        ]);
+        exit();
+    }
+
+    echo json_encode([
+        "status" => true,
+        "message" => "Config berhasil diperbarui",
+        "data" => $new
+    ]);
+    exit();
+}
+
 }
 
 // ================== FALLBACK ==================
