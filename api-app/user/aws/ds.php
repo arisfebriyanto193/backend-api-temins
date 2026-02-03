@@ -127,7 +127,8 @@ echo json_encode([
         "name" => $device['device_name'],
         "id"   => $device_unique_id,
         "lokasi" => $device['location'],
-        "zona_waktu" => $device['timezone']
+        "zona_waktu" => $device['timezone'],
+        "owner" => $device['owner_name']
     ],
     "sensors" => $sensors,
     "charts"  => $charts,
