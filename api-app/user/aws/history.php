@@ -98,8 +98,13 @@ echo json_encode([
     "status" => true,
     "device_name" => $device['device_name'],
     "device_id" => $device_unique_id,
-    "zonawaktu" =>$device['timezone'],
+   "lokasi" => $device['location'],
+    "kota" => $device['city'], 
+   "zonawaktu" =>$device['timezone'],
     "sensors" => $sensors,
     "years" => $years
 ]);
 ?>
+
+
+
