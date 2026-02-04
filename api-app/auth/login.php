@@ -87,7 +87,9 @@ $payload = [
     "username" => $user['username'],
     "role" => $user['role'],
     "device_type" => $device_type, // Disimpan di token agar Front-end tahu tipe alatnya
-    "exp" => time() + (60 * 60 * 24) // Token berlaku 24 jam
+   // "exp" => time() + 60 // 1 menit  #time() + (60 * 60 * 24) // Token berlaku 24 jam
+   "exp" => time() + (60 * 60 * 24 * 7) // 7 hari
+
 ];
 
 // Gunakan fungsi generate_jwt dari file jwt.php
