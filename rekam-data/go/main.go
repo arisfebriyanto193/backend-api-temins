@@ -28,6 +28,7 @@ const (
 	FLUSH_INTERVAL_MINUTES   = 5
 	CACHE_REFRESH_INTERVAL   = 30 * time.Second
 	WIB_OFFSET               = 7 * time.Hour
+	WEBSOCKET_LOG_PORT       = 8080  // Port untuk WebSocket logging
 )
 
 var (
@@ -70,6 +71,7 @@ var (
 	lastChValue         = make(map[string]float64)  // device_id -> last ch value
 	accumulatedCh       = make(map[string]float64)  // device_id -> accumulated cha value
 	lastChDate          = make(map[string]string)   // device_id -> last date (YYYY-MM-DD)
+	chBaseOffset        = make(map[string]float64)  // device_id -> base offset after restart
 	restartDetected     int64                        // counter for restart detection
 )
 
@@ -165,18 +167,20 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
 		accumulatedCh[deviceID] = chValue
+		chBaseOffset[deviceID] = 0 // Reset offset
 		return chValue, false
 	}
 	
-	// Get last known value
+	// Get last known value and offset
 	lastValue, exists := lastChValue[deviceID]
-	currentAccumulation := accumulatedCh[deviceID]
+	baseOffset, _ := chBaseOffset[deviceID]
 	
 	if !exists {
 		// First data of the day
 		log.Printf("🌧️ [CH] First data for %s today: %.2f mm\n", deviceID, chValue)
 		lastChValue[deviceID] = chValue
 		accumulatedCh[deviceID] = chValue
+		chBaseOffset[deviceID] = 0
 		return chValue, false
 	}
 	
@@ -185,33 +189,59 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		restartDetected++
 		
 		log.Printf("🔄 [CH-RESTART #%d] ESP32 restart detected for %s!\n", restartDetected, deviceID)
-		log.Printf("   Last value: %.2f mm\n", lastValue)
-		log.Printf("   New value: %.2f mm (< last value)\n", chValue)
-		log.Printf("   Previous accumulation: %.2f mm\n", currentAccumulation)
+		log.Printf("   Last CH value: %.2f mm\n", lastValue)
+		log.Printf("   New CH value: %.2f mm (< last value = RESTART)\n", chValue)
+		log.Printf("   Previous base offset: %.2f mm\n", baseOffset)
 		
-		// Add current accumulation + new value
-		newAccumulation := currentAccumulation + chValue
+		// CRITICAL: When restart happens:
+		// 1. ESP32 resets to 0 and starts counting again
+		// 2. We need to preserve the accumulated value BEFORE restart
+		// 3. New offset = previous offset + last value (accumulated before restart)
+		// 4. New accumulation = new offset + current ESP32 value
 		
+		newOffset := baseOffset + lastValue
+		newAccumulation := newOffset + chValue
+		
+		log.Printf("   New base offset: %.2f + %.2f = %.2f mm\n", 
+			baseOffset, lastValue, newOffset)
 		log.Printf("   New accumulation: %.2f + %.2f = %.2f mm\n", 
-			currentAccumulation, chValue, newAccumulation)
+			newOffset, chValue, newAccumulation)
 		
+		// Send to WebSocket
+		LogWarning("CH-RESTART", fmt.Sprintf("ESP32 restart detected for device %s", deviceID), map[string]interface{}{
+			"device_id":           deviceID,
+			"last_value":          lastValue,
+			"new_value":           chValue,
+			"base_offset":         newOffset,
+			"new_accumulation":    newAccumulation,
+			"restart_count":       restartDetected,
+		})
+		
+		chBaseOffset[deviceID] = newOffset
 		accumulatedCh[deviceID] = newAccumulation
 		lastChValue[deviceID] = chValue
 		
 		return newAccumulation, true
 	}
 	
-	// Normal case: value increased or same
+	// Normal case: value increased or same (no restart)
+	// ESP32 accumulates internally, so we just add the offset
+	newAccumulation := baseOffset + chValue
+	
 	if chValue > lastValue {
 		log.Printf("🌧️ [CH] Normal rainfall increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
 			deviceID, lastValue, chValue, chValue-lastValue)
+		log.Printf("   Calculation: %.2f (offset) + %.2f (ESP32) = %.2f mm\n", 
+			baseOffset, chValue, newAccumulation)
+	} else {
+		log.Printf("🌧️ [CH] No change for %s: %.2f mm (accumulated: %.2f mm)\n", 
+			deviceID, chValue, newAccumulation)
 	}
 	
-	// Update tracking
+	accumulatedCh[deviceID] = newAccumulation
 	lastChValue[deviceID] = chValue
-	accumulatedCh[deviceID] = chValue
 	
-	return chValue, false
+	return newAccumulation, false
 }
 
 // ==========================
@@ -701,6 +731,15 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	
 	log.Printf("   ✅ Parsed Value: %.2f\n", value)
 	
+	// Send to WebSocket
+	LogInfo("MQTT", fmt.Sprintf("Data received from %s", deviceID), map[string]interface{}{
+		"device_id":   deviceID,
+		"device_type": deviceType,
+		"parameter":   parameter,
+		"value":       value,
+		"topic":       topic,
+	})
+	
 	saveToBufferFile(deviceID, parameter, value)
 }
 
@@ -771,10 +810,24 @@ func flushToDB() {
 						if failCount == 0 {
 							if err := tx.Commit(); err != nil {
 								log.Printf("❌ [DB] Commit error: %v\n", err)
+								LogError("DB", "Failed to commit transaction", map[string]interface{}{
+									"error": err.Error(),
+								})
 							} else {
 								log.Println("\n💾 DATABASE PERSISTENCE REPORT")
 								log.Printf("🕐 Timestamp (WIB): %s\n", batchTimestampStr)
 								log.Printf("📊 Total: %d records (%d success, %d failed)\n", len(dataToSave), successCount, failCount)
+								
+								// Update flush stats
+								updateFlushStats(successCount)
+								
+								// Send to WebSocket
+								LogSuccess("DB", fmt.Sprintf("Flushed %d records to database", successCount), map[string]interface{}{
+									"timestamp":     batchTimestampStr,
+									"total_records": len(dataToSave),
+									"success":       successCount,
+									"failed":        failCount,
+								})
 								
 								for _, d := range dataToSave {
 									emoji := "✅"
@@ -792,6 +845,9 @@ func flushToDB() {
 							}
 						} else {
 							log.Printf("⚠️ [DB] Transaction rolled back due to %d failures\n", failCount)
+							LogWarning("DB", fmt.Sprintf("Transaction rolled back (%d failures)", failCount), map[string]interface{}{
+								"failed_count": failCount,
+							})
 							// tx.Rollback() will be called by defer
 						}
 					}
@@ -878,10 +934,11 @@ func statusMonitor() {
 		
 		chLock.RLock()
 		chDeviceCount := len(lastChValue)
+		chOffsetCount := len(chBaseOffset)
 		chLock.RUnlock()
 		
-		log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d | Connected: %v\n\n",
-			mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, mqttConnected)
+		log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d (offset: %d) | Connected: %v\n\n",
+			mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, chOffsetCount, mqttConnected)
 	}
 }
 
@@ -964,6 +1021,12 @@ func main() {
 	go flushToDB()
 	go autoRefreshSensorCache()
 	go statusMonitor()
+	
+	// Start WebSocket log server in background
+	go StartLogServer(WEBSOCKET_LOG_PORT)
+	
+	// Give the server a moment to start
+	time.Sleep(1 * time.Second)
 	
 	// Connect MQTT
 	log.Printf("🔌 Connecting to wss://%s:%d/mqtt...\n", BROKER_HOST, BROKER_PORT)
