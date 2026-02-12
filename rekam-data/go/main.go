@@ -172,8 +172,6 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	lastValue, exists := lastChValue[deviceID]
 	currentAccumulation := accumulatedCh[deviceID]
 	
-	restartDetectedFlag := false
-	
 	if !exists {
 		// First data of the day
 		log.Printf("🌧️ [CH] First data for %s today: %.2f mm\n", deviceID, chValue)
@@ -185,7 +183,6 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	// Detect ESP32 restart: new value < last value (in same day)
 	if chValue < lastValue {
 		restartDetected++
-		restartDetectedFlag = true
 		
 		log.Printf("🔄 [CH-RESTART #%d] ESP32 restart detected for %s!\n", restartDetected, deviceID)
 		log.Printf("   Last value: %.2f mm\n", lastValue)
