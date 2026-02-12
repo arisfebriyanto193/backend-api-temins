@@ -64,13 +64,6 @@ var (
 	mqttMessageCount    int64
 	awlrCalculationCount int64
 	mqttConnected       bool
-	
-	// Curah Hujan tracking
-	chLock              sync.RWMutex
-	lastChValue         = make(map[string]float64)  // device_id -> last ch value
-	accumulatedCh       = make(map[string]float64)  // device_id -> accumulated cha value
-	lastChDate          = make(map[string]string)   // device_id -> last date (YYYY-MM-DD)
-	restartDetected     int64                        // counter for restart detection
 )
 
 // ==========================
@@ -114,10 +107,6 @@ func formatWIBTimestamp(t time.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-func formatWIBDate(t time.Time) string {
-	return t.Format("2006-01-02")
-}
-
 func getNext5MinInterval() (time.Time, time.Duration) {
 	nowWIB := getWIBTime()
 	currentMinute := nowWIB.Minute()
@@ -144,77 +133,6 @@ func getRounded5MinTimestamp() time.Time {
 	
 	return time.Date(nowWIB.Year(), nowWIB.Month(), nowWIB.Day(),
 		nowWIB.Hour(), roundedMinute, 0, 0, nowWIB.Location())
-}
-
-// ==========================
-// CURAH HUJAN FUNCTIONS
-// ==========================
-
-// processCurahHujan handles rainfall accumulation with ESP32 restart detection
-func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
-	currentDate := formatWIBDate(getWIBTime())
-	
-	chLock.Lock()
-	defer chLock.Unlock()
-	
-	// Check if this is a new day - reset accumulation at 00:00
-	lastDate, dateExists := lastChDate[deviceID]
-	if !dateExists || lastDate != currentDate {
-		log.Printf("🌅 [CH] New day detected for %s: %s -> %s, resetting accumulation\n", 
-			deviceID, lastDate, currentDate)
-		lastChDate[deviceID] = currentDate
-		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = chValue
-		return chValue, false
-	}
-	
-	// Get last known value
-	lastValue, exists := lastChValue[deviceID]
-	currentAccumulation := accumulatedCh[deviceID]
-	
-	restartDetectedFlag := false
-	
-	if !exists {
-		// First data of the day
-		log.Printf("🌧️ [CH] First data for %s today: %.2f mm\n", deviceID, chValue)
-		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = chValue
-		return chValue, false
-	}
-	
-	// Detect ESP32 restart: new value < last value (in same day)
-	if chValue < lastValue {
-		restartDetected++
-		restartDetectedFlag = true
-		
-		log.Printf("🔄 [CH-RESTART #%d] ESP32 restart detected for %s!\n", restartDetected, deviceID)
-		log.Printf("   Last value: %.2f mm\n", lastValue)
-		log.Printf("   New value: %.2f mm (< last value)\n", chValue)
-		log.Printf("   Previous accumulation: %.2f mm\n", currentAccumulation)
-		
-		// Add current accumulation + new value
-		newAccumulation := currentAccumulation + chValue
-		
-		log.Printf("   New accumulation: %.2f + %.2f = %.2f mm\n", 
-			currentAccumulation, chValue, newAccumulation)
-		
-		accumulatedCh[deviceID] = newAccumulation
-		lastChValue[deviceID] = chValue
-		
-		return newAccumulation, true
-	}
-	
-	// Normal case: value increased or same
-	if chValue > lastValue {
-		log.Printf("🌧️ [CH] Normal rainfall increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
-			deviceID, lastValue, chValue, chValue-lastValue)
-	}
-	
-	// Update tracking
-	lastChValue[deviceID] = chValue
-	accumulatedCh[deviceID] = chValue
-	
-	return chValue, false
 }
 
 // ==========================
@@ -390,55 +308,18 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 	}
 	mapLock.RUnlock()
 	
-	// Handle Curah Hujan (ch) parameter
-	if parameter == "ch" {
-		// Save original ch value (from MQTT)
-		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		data[key] = BufferData{
-			DeviceID:   deviceID,
-			DeviceType: deviceType,
-			Parameter:  parameter,
-			Value:      value,
-			Timestamp:  formatWIBTimestamp(getWIBTime()),
-		}
-		
-		log.Printf("📥 [BUFFER] Saved CH: Device=%s, Type=%s, Param=%s, Value=%.2f mm (MQTT original)\n", 
-			deviceID, deviceType, parameter, value)
-		
-		// Calculate accumulated rainfall (cha)
-		chaValue, restartDetected := processCurahHujan(deviceID, value)
-		
-		// Save accumulated value as 'cha'
-		chaKey := fmt.Sprintf("%s|cha", deviceID)
-		data[chaKey] = BufferData{
-			DeviceID:   deviceID,
-			DeviceType: deviceType,
-			Parameter:  "cha",
-			Value:      chaValue,
-			Timestamp:  formatWIBTimestamp(getWIBTime()),
-		}
-		
-		if restartDetected {
-			log.Printf("📥 [BUFFER] Saved CHA: Device=%s, Type=%s, Param=cha, Value=%.2f mm (⚠️ RESTART DETECTED - ACCUMULATED)\n", 
-				deviceID, deviceType, chaValue)
-		} else {
-			log.Printf("📥 [BUFFER] Saved CHA: Device=%s, Type=%s, Param=cha, Value=%.2f mm (accumulated)\n", 
-				deviceID, deviceType, chaValue)
-		}
-	} else {
-		// Normal parameter handling
-		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		data[key] = BufferData{
-			DeviceID:   deviceID,
-			DeviceType: deviceType,
-			Parameter:  parameter,
-			Value:      value,
-			Timestamp:  formatWIBTimestamp(getWIBTime()),
-		}
-		
-		log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
-			deviceID, deviceType, parameter, value)
+	key := fmt.Sprintf("%s|%s", deviceID, parameter)
+	data[key] = BufferData{
+		DeviceID:   deviceID,
+		DeviceType: deviceType,
+		Parameter:  parameter,
+		Value:      value,
+		Timestamp:  formatWIBTimestamp(getWIBTime()),
 	}
+	
+	// Log setiap data yang masuk
+	log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
+		deviceID, deviceType, parameter, value)
 	
 	// AWLR Calculation - ENHANCED LOGGING
 	if strings.ToLower(deviceType) == "awlr" && parameter == "tuc" {
@@ -735,7 +616,6 @@ func flushToDB() {
 			log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
 			log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
 			log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
-			log.Printf("   🔄 CH Restart Detections: %d\n", restartDetected)
 			log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
 		} else {
 			// CRITICAL FIX: Use global pgDB pool - NO sql.Open()
@@ -783,10 +663,6 @@ func flushToDB() {
 									emoji := "✅"
 									if strings.Contains(d.Parameter, "result_tinggi_air") {
 										emoji = "🌊"
-									} else if d.Parameter == "cha" {
-										emoji = "☔"
-									} else if d.Parameter == "ch" {
-										emoji = "🌧️"
 									}
 									log.Printf("   %s %s | %s | %s = %.2f\n", emoji, d.DeviceID, d.DeviceType, d.Parameter, d.Value)
 								}
@@ -879,12 +755,8 @@ func statusMonitor() {
 		cacheCount := len(sensorHeightCache)
 		cacheLock.RUnlock()
 		
-		chLock.RLock()
-		chDeviceCount := len(lastChValue)
-		chLock.RUnlock()
-		
-		log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d | Connected: %v\n\n",
-			mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, mqttConnected)
+		log.Printf("\n📊 [STATUS] Messages: %d | AWLR Calc: %d | Devices: %d | Cache: %d | Connected: %v\n\n",
+			mqttMessageCount, awlrCalculationCount, deviceCount, cacheCount, mqttConnected)
 	}
 }
 
@@ -901,7 +773,7 @@ func main() {
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
 	
 	log.Println("\n" + strings.Repeat("=", 70))
-	log.Println("🚀 TEMINS IoT Logger - Go Version (WITH CH RESTART DETECTION)")
+	log.Println("🚀 TEMINS IoT Logger - Go Version (PRODUCTION-SAFE)")
 	log.Println(strings.Repeat("=", 70))
 	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
 	log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
