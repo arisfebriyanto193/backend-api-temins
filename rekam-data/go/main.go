@@ -154,120 +154,194 @@ func getRounded5MinTimestamp() time.Time {
 // ==========================
 
 // processCurahHujan handles rainfall accumulation with ESP32 restart detection
-func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
-	currentDate := formatWIBDate(getWIBTime())
+// func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+// 	currentDate := formatWIBDate(getWIBTime())
 	
+// 	chLock.Lock()
+// 	defer chLock.Unlock()
+	
+// 	// Check if this is a new day - reset accumulation at 00:00
+// 	lastDate, dateExists := lastChDate[deviceID]
+// 	if !dateExists || lastDate != currentDate {
+// 		log.Printf("🌅 [CH] New day detected for %s: %s -> %s, resetting accumulation\n", 
+// 			deviceID, lastDate, currentDate)
+// 		lastChDate[deviceID] = currentDate
+// 		lastChValue[deviceID] = chValue
+// 		accumulatedCh[deviceID] = chValue
+// 		chBaseOffset[deviceID] = 0
+// 		chPostRestart[deviceID] = false
+// 		return chValue, false
+// 	}
+	
+// 	// Get last known value, offset, and post-restart status
+// 	lastValue, exists := lastChValue[deviceID]
+// 	baseOffset, _ := chBaseOffset[deviceID]
+// 	isPostRestart, _ := chPostRestart[deviceID]
+	
+// 	if !exists {
+// 		// First data of the day
+// 		log.Printf("🌧️ [CH] First data for %s today: %.2f mm\n", deviceID, chValue)
+// 		lastChValue[deviceID] = chValue
+// 		accumulatedCh[deviceID] = chValue
+// 		chBaseOffset[deviceID] = 0
+// 		chPostRestart[deviceID] = false
+// 		return chValue, false
+// 	}
+	
+// 	// CRITICAL LOGIC FIX:
+// 	// Restart detection ONLY applies when NOT already in post-restart mode
+// 	// AND the new value is less than last value
+	
+// 	if !isPostRestart && chValue < lastValue {
+// 		// RESTART TERDETEKSI!
+// 		restartDetected++
+		
+// 		log.Printf("🔄 [CH-RESTART #%d] ESP32 restart detected for %s!\n", restartDetected, deviceID)
+// 		log.Printf("   Last CH value: %.2f mm\n", lastValue)
+// 		log.Printf("   New CH value: %.2f mm (< last value = RESTART)\n", chValue)
+// 		log.Printf("   Previous base offset: %.2f mm\n", baseOffset)
+		
+// 		// When restart happens:
+// 		// 1. Save the accumulated value BEFORE restart as new offset
+// 		// 2. From now on, we're in post-restart mode
+// 		// 3. CHA = offset + ESP32 value (continuously)
+		
+// 		newOffset := baseOffset + lastValue
+// 		newAccumulation := newOffset + chValue
+		
+// 		log.Printf("   New base offset: %.2f + %.2f = %.2f mm\n", 
+// 			baseOffset, lastValue, newOffset)
+// 		log.Printf("   New accumulation: %.2f + %.2f = %.2f mm\n", 
+// 			newOffset, chValue, newAccumulation)
+// 		log.Printf("   ⚠️ Entering POST-RESTART mode\n")
+		
+// 		// Send to WebSocket
+// 		LogWarning("CH-RESTART", fmt.Sprintf("ESP32 restart detected for device %s", deviceID), map[string]interface{}{
+// 			"device_id":           deviceID,
+// 			"last_value":          lastValue,
+// 			"new_value":           chValue,
+// 			"base_offset":         newOffset,
+// 			"new_accumulation":    newAccumulation,
+// 			"restart_count":       restartDetected,
+// 		})
+		
+// 		chBaseOffset[deviceID] = newOffset
+// 		chPostRestart[deviceID] = true  // MASUK MODE POST-RESTART
+// 		accumulatedCh[deviceID] = newAccumulation
+// 		lastChValue[deviceID] = chValue
+		
+// 		return newAccumulation, true
+// 	}
+	
+// 	// Normal case OR post-restart mode continuation
+// 	// In both cases: CHA = offset + ESP32 value
+// 	newAccumulation := baseOffset + chValue
+	
+// 	if isPostRestart {
+// 		// Device masih dalam mode post-restart
+// 		// Semua nilai (naik/turun/sama) dihitung: offset + nilai
+// 		if chValue > lastValue {
+// 			log.Printf("🌧️ [CH] POST-RESTART increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
+// 				deviceID, lastValue, chValue, chValue-lastValue)
+// 		} else if chValue < lastValue {
+// 			log.Printf("🌧️ [CH] POST-RESTART decrease for %s: %.2f -> %.2f mm (ESP32 still counting)\n", 
+// 				deviceID, lastValue, chValue)
+// 		} else {
+// 			log.Printf("🌧️ [CH] POST-RESTART same for %s: %.2f mm\n", deviceID, chValue)
+// 		}
+// 		log.Printf("   Calculation: %.2f (offset) + %.2f (ESP32) = %.2f mm\n", 
+// 			baseOffset, chValue, newAccumulation)
+// 	} else {
+// 		// Normal mode (no restart yet today)
+// 		// ESP32 accumulates internally, so we use its value directly
+// 		if chValue > lastValue {
+// 			log.Printf("🌧️ [CH] Normal increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
+// 				deviceID, lastValue, chValue, chValue-lastValue)
+// 			log.Printf("   CHA = ESP32 value = %.2f mm (no offset)\n", chValue)
+// 		} else {
+// 			log.Printf("🌧️ [CH] No change for %s: %.2f mm\n", deviceID, chValue)
+// 		}
+// 	}
+	
+// 	accumulatedCh[deviceID] = newAccumulation
+// 	lastChValue[deviceID] = chValue
+	
+// 	return newAccumulation, false
+// }
+
+func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+	now := getWIBTime()
+	currentDate := formatWIBDate(now)
+	currentHour := now.Hour()
+	currentMinute := now.Minute()
+
 	chLock.Lock()
 	defer chLock.Unlock()
-	
-	// Check if this is a new day - reset accumulation at 00:00
+
 	lastDate, dateExists := lastChDate[deviceID]
+
+	// ====================================
+	// RESET HARI BARU → JAM 00:00 = 0
+	// ====================================
 	if !dateExists || lastDate != currentDate {
-		log.Printf("🌅 [CH] New day detected for %s: %s -> %s, resetting accumulation\n", 
-			deviceID, lastDate, currentDate)
+
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = chValue
-		chBaseOffset[deviceID] = 0
-		chPostRestart[deviceID] = false
-		return chValue, false
+		accumulatedCh[deviceID] = 0
+
+		log.Printf("🌅 [CH] New day for %s → FORCE RESET TO 0\n", deviceID)
+
+		return 0, false
 	}
-	
-	// Get last known value, offset, and post-restart status
-	lastValue, exists := lastChValue[deviceID]
-	baseOffset, _ := chBaseOffset[deviceID]
-	isPostRestart, _ := chPostRestart[deviceID]
-	
-	if !exists {
-		// First data of the day
-		log.Printf("🌧️ [CH] First data for %s today: %.2f mm\n", deviceID, chValue)
+
+	// ====================================
+	// KHUSUS TEPAT JAM 00:00 → PAKSA 0
+	// ====================================
+	if currentHour == 0 && currentMinute == 0 {
+		accumulatedCh[deviceID] = 0
 		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = chValue
-		chBaseOffset[deviceID] = 0
-		chPostRestart[deviceID] = false
-		return chValue, false
+
+		log.Printf("🕛 [CH] %s at 00:00 → FORCE 0\n", deviceID)
+
+		return 0, false
 	}
-	
-	// CRITICAL LOGIC FIX:
-	// Restart detection ONLY applies when NOT already in post-restart mode
-	// AND the new value is less than last value
-	
-	if !isPostRestart && chValue < lastValue {
-		// RESTART TERDETEKSI!
+
+	lastValue := lastChValue[deviceID]
+	currentAccumulation := accumulatedCh[deviceID]
+
+	// ====================================
+	// RESTART (nilai turun)
+	// ====================================
+	if chValue < lastValue {
 		restartDetected++
-		
-		log.Printf("🔄 [CH-RESTART #%d] ESP32 restart detected for %s!\n", restartDetected, deviceID)
-		log.Printf("   Last CH value: %.2f mm\n", lastValue)
-		log.Printf("   New CH value: %.2f mm (< last value = RESTART)\n", chValue)
-		log.Printf("   Previous base offset: %.2f mm\n", baseOffset)
-		
-		// When restart happens:
-		// 1. Save the accumulated value BEFORE restart as new offset
-		// 2. From now on, we're in post-restart mode
-		// 3. CHA = offset + ESP32 value (continuously)
-		
-		newOffset := baseOffset + lastValue
-		newAccumulation := newOffset + chValue
-		
-		log.Printf("   New base offset: %.2f + %.2f = %.2f mm\n", 
-			baseOffset, lastValue, newOffset)
-		log.Printf("   New accumulation: %.2f + %.2f = %.2f mm\n", 
-			newOffset, chValue, newAccumulation)
-		log.Printf("   ⚠️ Entering POST-RESTART mode\n")
-		
-		// Send to WebSocket
-		LogWarning("CH-RESTART", fmt.Sprintf("ESP32 restart detected for device %s", deviceID), map[string]interface{}{
-			"device_id":           deviceID,
-			"last_value":          lastValue,
-			"new_value":           chValue,
-			"base_offset":         newOffset,
-			"new_accumulation":    newAccumulation,
-			"restart_count":       restartDetected,
-		})
-		
-		chBaseOffset[deviceID] = newOffset
-		chPostRestart[deviceID] = true  // MASUK MODE POST-RESTART
+
+		newAccumulation := currentAccumulation + chValue
+
+		log.Printf("🔄 [CH-RESTART #%d] %s\n", restartDetected, deviceID)
+		log.Printf("   %.2f -> %.2f (RESTART)\n", lastValue, chValue)
+		log.Printf("   Accumulation: %.2f + %.2f = %.2f\n",
+			currentAccumulation, chValue, newAccumulation)
+
 		accumulatedCh[deviceID] = newAccumulation
 		lastChValue[deviceID] = chValue
-		
+
 		return newAccumulation, true
 	}
-	
-	// Normal case OR post-restart mode continuation
-	// In both cases: CHA = offset + ESP32 value
-	newAccumulation := baseOffset + chValue
-	
-	if isPostRestart {
-		// Device masih dalam mode post-restart
-		// Semua nilai (naik/turun/sama) dihitung: offset + nilai
-		if chValue > lastValue {
-			log.Printf("🌧️ [CH] POST-RESTART increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
-				deviceID, lastValue, chValue, chValue-lastValue)
-		} else if chValue < lastValue {
-			log.Printf("🌧️ [CH] POST-RESTART decrease for %s: %.2f -> %.2f mm (ESP32 still counting)\n", 
-				deviceID, lastValue, chValue)
-		} else {
-			log.Printf("🌧️ [CH] POST-RESTART same for %s: %.2f mm\n", deviceID, chValue)
-		}
-		log.Printf("   Calculation: %.2f (offset) + %.2f (ESP32) = %.2f mm\n", 
-			baseOffset, chValue, newAccumulation)
-	} else {
-		// Normal mode (no restart yet today)
-		// ESP32 accumulates internally, so we use its value directly
-		if chValue > lastValue {
-			log.Printf("🌧️ [CH] Normal increase for %s: %.2f -> %.2f mm (+%.2f mm)\n", 
-				deviceID, lastValue, chValue, chValue-lastValue)
-			log.Printf("   CHA = ESP32 value = %.2f mm (no offset)\n", chValue)
-		} else {
-			log.Printf("🌧️ [CH] No change for %s: %.2f mm\n", deviceID, chValue)
-		}
-	}
-	
+
+	// ====================================
+	// NORMAL (naik atau sama)
+	// ====================================
+	newAccumulation := chValue
+
 	accumulatedCh[deviceID] = newAccumulation
 	lastChValue[deviceID] = chValue
-	
+
+	log.Printf("🌧️ [CH] Normal %s: %.2f -> %.2f\n",
+		deviceID, lastValue, chValue)
+
 	return newAccumulation, false
 }
+
 
 // ==========================
 // DATABASE INITIALIZATION
@@ -1077,4 +1151,5 @@ func main() {
 	
 	configWatcher(client)
 }
+
 
