@@ -258,7 +258,7 @@ func handleLogs(w http.ResponseWriter, r *http.Request) {
 	// Return basic info since we're using WebSocket for real-time logs
 	response := map[string]interface{}{
 		"message": "Use WebSocket at /ws for real-time logs",
-		"ws_url":  "ws://localhost:8080/ws",
+		"ws_url":  "ws://localhost:8011/ws",
 		"stats":   getCurrentStats(),
 	}
 
