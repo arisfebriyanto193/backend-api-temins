@@ -28,7 +28,7 @@ const (
 	FLUSH_INTERVAL_MINUTES   = 5
 	CACHE_REFRESH_INTERVAL   = 30 * time.Second
 	WIB_OFFSET               = 7 * time.Hour
-	WEBSOCKET_LOG_PORT       = 8080  // Port untuk WebSocket logging
+	WEBSOCKET_LOG_PORT       = 8011  // Port untuk WebSocket logging
 )
 
 var (
