@@ -268,59 +268,34 @@ func getRounded5MinTimestamp() time.Time {
 	
 // 	return newAccumulation, false
 // }
-
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	now := getWIBTime()
 	currentDate := formatWIBDate(now)
-	currentHour := now.Hour()
-	currentMinute := now.Minute()
 
 	chLock.Lock()
 	defer chLock.Unlock()
 
 	lastDate, dateExists := lastChDate[deviceID]
 
-	// ====================================
-	// RESET HARI BARU → JAM 00:00 = 0
-	// ====================================
+	// RESET HARI BARU
 	if !dateExists || lastDate != currentDate {
-
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = 0
+		accumulatedCh[deviceID] = chValue
 
-		log.Printf("🌅 [CH] New day for %s → FORCE RESET TO 0\n", deviceID)
-
-		return 0, false
-	}
-
-	// ====================================
-	// KHUSUS TEPAT JAM 00:00 → PAKSA 0
-	// ====================================
-	if currentHour == 0 && currentMinute == 0 {
-		accumulatedCh[deviceID] = 0
-		lastChValue[deviceID] = chValue
-
-		log.Printf("🕛 [CH] %s at 00:00 → FORCE 0\n", deviceID)
-
-		return 0, false
+		return chValue, false
 	}
 
 	lastValue := lastChValue[deviceID]
 	currentAccumulation := accumulatedCh[deviceID]
 
-	// ====================================
+	// =========================
 	// RESTART (nilai turun)
-	// ====================================
+	// =========================
 	if chValue < lastValue {
 		restartDetected++
 
 		newAccumulation := currentAccumulation + chValue
-
-		log.Printf("🔄 [CH-RESTART #%d] %s\n", restartDetected, deviceID)
-		log.Printf("   %.2f -> %.2f (RESTART)\n", lastValue, chValue)
-		log.Printf("   Accumulation: %.2f + %.2f = %.2f\n",
-			currentAccumulation, chValue, newAccumulation)
 
 		accumulatedCh[deviceID] = newAccumulation
 		lastChValue[deviceID] = chValue
@@ -328,20 +303,18 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		return newAccumulation, true
 	}
 
-	// ====================================
-	// NORMAL (naik atau sama)
-	// ====================================
-	newAccumulation := chValue
+	// =========================
+	// NORMAL NAIK
+	// Tambahkan selisih
+	// =========================
+	diff := chValue - lastValue
+	newAccumulation := currentAccumulation + diff
 
 	accumulatedCh[deviceID] = newAccumulation
 	lastChValue[deviceID] = chValue
 
-	log.Printf("🌧️ [CH] Normal %s: %.2f -> %.2f\n",
-		deviceID, lastValue, chValue)
-
 	return newAccumulation, false
 }
-
 
 // ==========================
 // DATABASE INITIALIZATION
@@ -1151,5 +1124,6 @@ func main() {
 	
 	configWatcher(client)
 }
+
 
 
