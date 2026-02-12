@@ -344,7 +344,7 @@ if ($method === 'POST') {
         exit();
     }
 
-   if ($action === 'update_config') {
+   if ($action === 'update_config') {           //updateeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 
     $dev_id = mysqli_real_escape_string($conn, $input['device_unique_id']);
     $uid    = mysqli_real_escape_string($conn, $input['user_id']);
@@ -353,21 +353,45 @@ if ($method === 'POST') {
     /* =========================
        UPDATE TIMEZONE DEVICE
        ========================= */
-    if (isset($input['timezone']) && !empty($input['timezone']) && isset($input['statusAlat']) && !empty($input['statusAlat']) && isset($input['lokasi'])) {
-        $timezone = mysqli_real_escape_string($conn, $input['timezone']);
-        $statusAlat = mysqli_real_escape_string($conn, $input['statusAlat']);
-        $lokasi = mysqli_real_escape_string($conn, $input['lokasi']);
-        $kota = mysqli_real_escape_string($conn, $input['city']);
+if (
+    isset($input['timezone']) && !empty($input['timezone']) &&
+    isset($input['statusAlat']) && !empty($input['statusAlat']) &&
+    isset($input['lokasi']) &&
+    isset($input['username']) && !empty($input['username'])
+) {
 
-        $conn->query("
-            UPDATE user_devices 
-            SET timezone = '$timezone',
-             status   = '$statusAlat',
-             location = '$lokasi',
-             city = '$kota'
-            WHERE device_unique_id = '$dev_id'
-        ");
+    $timezone   = $input['timezone'];
+    $statusAlat = $input['statusAlat'];
+    $lokasi     = $input['lokasi'];
+    $kota       = $input['city'];
+    $username   = $input['username'];
+
+    // Update user_devices
+    $stmt = $conn->prepare("
+        UPDATE user_devices 
+        SET timezone = ?, status = ?, location = ?, city = ?
+        WHERE device_unique_id = ?
+    ");
+    $stmt->bind_param("sssss", $timezone, $statusAlat, $lokasi, $kota, $dev_id);
+    $stmt->execute();
+
+    // Ambil user_id
+    $stmt2 = $conn->prepare("SELECT user_id FROM user_devices WHERE device_unique_id = ?");
+    $stmt2->bind_param("s", $dev_id);
+    $stmt2->execute();
+    $result = $stmt2->get_result();
+
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $user_id = $row['user_id'];
+
+        // Update username
+        $stmt3 = $conn->prepare("UPDATE users SET username = ? WHERE id = ?");
+        $stmt3->bind_param("si", $username, $user_id);
+        $stmt3->execute();
     }
+}
+
 
 
 /////////////update baris data awlr dan status
@@ -523,7 +547,8 @@ if (
 
     echo json_encode([
         "status"  => true,
-        "message" => "Konfigurasi device berhasil diupdate"
+        "message" => "Konfigurasi device berhasil diupdate",
+        "username" => $username
     ]);
     exit();
 }
