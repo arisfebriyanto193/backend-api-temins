@@ -1109,7 +1109,7 @@ func statusMonitor() {
 		chLock.RUnlock()
 		
 		//log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d (offset: %d) | Connected: %v\n\n",
-			mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, chOffsetCount, mqttConnected)
+		//	mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, chOffsetCount, mqttConnected)
 	}
 }
 
