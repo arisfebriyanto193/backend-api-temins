@@ -893,10 +893,10 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	//log.Printf("   Device ID: %s\n", deviceID)
 //	log.Printf("   Parameter: %s\n", parameter)
 	
-	// Check device type
-	mapLock.RLock()
-	deviceType, deviceExists := deviceMap[deviceID]
-	mapLock.RUnlock()
+	// // Check device type
+	// mapLock.RLock()
+	// deviceType, deviceExists := deviceMap[deviceID]
+	// mapLock.RUnlock()
 	
 	if deviceExists {
 	//	log.Printf("   Device Type: %s\n", deviceType)
