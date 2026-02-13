@@ -803,7 +803,7 @@ func updateConfigFromJSON() (map[string]bool, map[string]string) {
 	log.Println("\n📋 [CONFIG] Loading device configuration:")
 	
 	for typeName, typeData := range config.DeviceType {
-		log.Printf("   🔧 Device Type: %s (%d devices)\n", typeName, len(typeData.Devices))
+		//log.Printf("   🔧 Device Type: %s (%d devices)\n", typeName, len(typeData.Devices))
 		
 		for _, dev := range typeData.Devices {
 			newMap[dev.DevID] = typeName
