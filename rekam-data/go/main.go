@@ -268,6 +268,41 @@ func getRounded5MinTimestamp() time.Time {
 	
 // 	return newAccumulation, false
 // }
+//Ambil cha dari db
+func getLastCHAFromDB(deviceID string) float64 {
+	if pgDB == nil {
+		log.Println("❌ [DB] PostgreSQL pool not initialized")
+		return 0
+	}
+
+	var lastCHA sql.NullFloat64
+
+	query := `
+		SELECT value 
+		FROM sensor_logs 
+		WHERE device_unique_id = $1 
+		AND parameter_name = 'cha'
+		ORDER BY recorded_at DESC 
+		LIMIT 1
+	`
+
+	err := pgDB.QueryRow(query, deviceID).Scan(&lastCHA)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("❌ [DB] Error getting last CHA: %v\n", err)
+		}
+		return 0
+	}
+
+	if lastCHA.Valid {
+		return lastCHA.Float64
+	}
+
+	return 0
+}
+
+
+
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	now := getWIBTime()
 	currentDate := formatWIBDate(now)
@@ -277,23 +312,37 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	lastDate, dateExists := lastChDate[deviceID]
 
-	// RESET HARI BARU
+	// =====================================
+	// HARI BARU
+	// =====================================
 	if !dateExists || lastDate != currentDate {
+
+		log.Printf("🌅 [CH] New day detected for %s", deviceID)
+
+		// Ambil CHA terakhir dari database
+		lastCHAFromDB := getLastCHAFromDB(deviceID)
+
+		log.Printf("📦 [CH] Last CHA from DB: %.2f mm", lastCHAFromDB)
+
+		newAccumulation := lastCHAFromDB + chValue
+
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = chValue
+		accumulatedCh[deviceID] = newAccumulation
 
-		return chValue, false
+		return newAccumulation, false
 	}
 
 	lastValue := lastChValue[deviceID]
 	currentAccumulation := accumulatedCh[deviceID]
 
-	// =========================
-	// RESTART (nilai turun)
-	// =========================
+	// =====================================
+	// RESTART (nilai turun, hari sama)
+	// =====================================
 	if chValue < lastValue {
 		restartDetected++
+
+		log.Printf("🔄 [CH] Restart detected (same day) for %s", deviceID)
 
 		newAccumulation := currentAccumulation + chValue
 
@@ -303,10 +352,9 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		return newAccumulation, true
 	}
 
-	// =========================
-	// NORMAL NAIK
-	// Tambahkan selisih
-	// =========================
+	// =====================================
+	// NORMAL NAIK (hari sama)
+	// =====================================
 	diff := chValue - lastValue
 	newAccumulation := currentAccumulation + diff
 
@@ -315,6 +363,57 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	return newAccumulation, false
 }
+
+
+
+
+// func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+// 	now := getWIBTime()
+// 	currentDate := formatWIBDate(now)
+
+// 	chLock.Lock()
+// 	defer chLock.Unlock()
+
+// 	lastDate, dateExists := lastChDate[deviceID]
+
+// 	// RESET HARI BARU
+// 	if !dateExists || lastDate != currentDate {
+// 		lastChDate[deviceID] = currentDate
+// 		lastChValue[deviceID] = chValue
+// 		accumulatedCh[deviceID] = chValue
+
+// 		return chValue, false
+// 	}
+
+// 	lastValue := lastChValue[deviceID]
+// 	currentAccumulation := accumulatedCh[deviceID]
+
+// 	// =========================
+// 	// RESTART (nilai turun)
+// 	// =========================
+// 	if chValue < lastValue {
+// 		restartDetected++
+
+// 		newAccumulation := currentAccumulation + chValue
+
+// 		accumulatedCh[deviceID] = newAccumulation
+// 		lastChValue[deviceID] = chValue
+
+// 		return newAccumulation, true
+// 	}
+
+// 	// =========================
+// 	// NORMAL NAIK
+// 	// Tambahkan selisih
+// 	// =========================
+// 	diff := chValue - lastValue
+// 	newAccumulation := currentAccumulation + diff
+
+// 	accumulatedCh[deviceID] = newAccumulation
+// 	lastChValue[deviceID] = chValue
+
+// 	return newAccumulation, false
+// }
 
 // ==========================
 // DATABASE INITIALIZATION
