@@ -147,9 +147,10 @@ if ($method === 'GET') {
 
     $q_device = mysqli_query(
         $conn,
-        "SELECT timezone, status, device_type, location, city
-         FROM user_devices 
-         WHERE device_unique_id = '$did'
+        "SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, u.email, u.username
+         FROM user_devices d
+         JOIN users u ON d.user_id = u.id
+         WHERE d.device_unique_id = '$did'
          LIMIT 1"
     );
 
@@ -159,6 +160,19 @@ if ($method === 'GET') {
         $device_type = $r_dev['device_type'];
         $lokasi = $r_dev['location'];
         $kota = $r_dev['city'];
+        
+        // Extended fields
+        $extended_data = [
+            'owner' => $r_dev['owner_name'],
+            'internet_no' => $r_dev['internet_no'],
+            'pic_name' => $r_dev['pic'],
+            'pic_contact' => $r_dev['pic_contact'],
+            'email' => $r_dev['email'],
+            'masa_aktif' => $r_dev['masa_aktif'],
+            'masa_paket' => $r_dev['masa_paket'],
+            'waktu_add' => $r_dev['waktu_add'],
+            'username' => $r_dev['username']
+        ];
     }
 
     // ================================
@@ -197,7 +211,8 @@ if ($method === 'GET') {
             "awlr_height"     => $awlr_height,
             "awlrData"        => $data_config['parameter_name'] ?? null,
             "awlrStatusData"  => $data_config['unit'] ?? null,
-            "awlrJenis" => $data_config2['category'] ?? 'tidak di ketahui'
+            "awlrJenis" => $data_config2['category'] ?? 'tidak di ketahui',
+            ...($extended_data ?? [])
         ]);
         exit;
     }
@@ -212,7 +227,10 @@ if ($method === 'GET') {
         "kota"           => $kota,
         "statusAlat"   => $statusAlat,
         "settings"     => $settings,
-        "awlr_height"  => $awlr_height
+        "statusAlat"   => $statusAlat,
+        "settings"     => $settings,
+        "awlr_height"  => $awlr_height,
+        ...($extended_data ?? [])
     ]);
     exit;
 }
@@ -274,7 +292,7 @@ exit();
 
 // B. POST ACTIONS (Add, Update, Delete)
 if ($method === 'POST') {
-    
+    /////////////////////////////////////////////////////
     // 1. ADD NEW USER & DEVICE
     if ($action === 'create_user') {
         $username = mysqli_real_escape_string($conn, $input['username']);
@@ -286,24 +304,33 @@ if ($method === 'POST') {
             echo json_encode(["status"=>false, "message"=>"Username sudah ada"]); exit();
         }
 
-        // Insert User
-        $conn->query("INSERT INTO users (username, password, role) VALUES ('$username', '$password', 'user')");
-        $new_uid = $conn->insert_id;
-
-        // Insert Device
-        $dev_name = mysqli_real_escape_string($conn, $input['dev_name']);
-        $dev_id   = mysqli_real_escape_string($conn, $input['dev_id']);
-        $dev_type = mysqli_real_escape_string($conn, $input['dev_type']);
-        $owner    = mysqli_real_escape_string($conn, $input['owner']);
-        $city     = mysqli_real_escape_string($conn, $input['city']);
-        $loc      = mysqli_real_escape_string($conn, $input['location']);
-        $inet     = mysqli_real_escape_string($conn, $input['internet_no']);
-        $pic      = mysqli_real_escape_string($conn, $input['pic_contact']);
         $pic_name = mysqli_real_escape_string($conn, $input['pic_name']);
         $timezone = mysqli_real_escape_string($conn, $input['timezone']);
 
-        $sql_dev = "INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic,timezone) 
-                    VALUES ('$new_uid', '$dev_name', '$owner', '$city', '$loc', '$inet', '$pic', '$dev_type', '$dev_id', '$pic_name','$timezone')";
+        $dev_name = mysqli_real_escape_string($conn, $input['device_name']);
+        $owner = mysqli_real_escape_string($conn, $input['owner']);
+        $city = mysqli_real_escape_string($conn, $input['city']);
+        $loc = mysqli_real_escape_string($conn, $input['lokasi']);
+        $inet = mysqli_real_escape_string($conn, $input['internet_no']);
+        $pic = mysqli_real_escape_string($conn, $input['pic_name']);
+        $dev_type = mysqli_real_escape_string($conn, $input['device_type']);
+        $dev_id = mysqli_real_escape_string($conn, $input['device_unique_id']);
+        $email = mysqli_real_escape_string($conn, $input['email']);
+        $masa_aktif = nullIfEmpty($input['masa_aktif']);
+        $masa_paket = nullIfEmpty($input['masa_paket']);
+        $waktu_add  = nullIfEmpty($input['waktu_add']);
+    
+
+        // $masa_aktif = mysqli_real_escape_string($conn, $input['masa_aktif']);
+        // $masa_paket = mysqli_real_escape_string($conn, $input['masa_paket']);
+        // $waktu_add  = mysqli_real_escape_string($conn, $input['waktu_add']);
+
+        // Insert User
+        $conn->query("INSERT INTO users (username, password, role, email) VALUES ('$username', '$password', 'user', '$email')");
+        $new_uid = $conn->insert_id;
+
+        $sql_dev = "INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic, timezone, masa_aktif, masa_paket, waktu_add) 
+                    VALUES ('$new_uid', '$dev_name', '$owner', '$city', '$loc', '$inet', '$pic', '$dev_type', '$dev_id', '$pic_name', '$timezone', '$masa_aktif', '$masa_paket', NOW())";
         
         if(!$conn->query($sql_dev)){
             echo json_encode(["status"=>false, "message"=>"Gagal insert device: ".$conn->error]); exit();
@@ -365,14 +392,30 @@ if (
     $lokasi     = $input['lokasi'];
     $kota       = $input['city'];
     $username   = $input['username'];
+    
+    // New fields
+    $owner = $input['owner'];
+    $internet_no = $input['internet_no'];
+    $pic_name = $input['pic_name'];       // Mapped to 'pic' column in DB
+    $pic_contact = $input['pic_contact']; // Mapped to 'pic_contact' column or similar
+    
+    $masa_aktif = nullIfEmpty($input['masa_aktif']);
+    $masa_paket = nullIfEmpty($input['masa_paket']);
+    $waktu_add = nullIfEmpty($input['waktu_add']);
+    $email = $input['email'];
 
     // Update user_devices
+    // Columns: timezone, status, location, city, owner_name, internet_no, pic, pic_contact, masa_aktif, masa_paket, waktu_add
     $stmt = $conn->prepare("
         UPDATE user_devices 
-        SET timezone = ?, status = ?, location = ?, city = ?
+        SET timezone = ?, status = ?, location = ?, city = ?, 
+            owner_name = ?, internet_no = ?, pic = ?, pic_contact = ?, 
+            masa_aktif = ?, masa_paket = ?, waktu_add = ?
         WHERE device_unique_id = ?
     ");
-    $stmt->bind_param("sssss", $timezone, $statusAlat, $lokasi, $kota, $dev_id);
+    $stmt->bind_param("ssssssssssss", $timezone, $statusAlat, $lokasi, $kota, 
+                      $owner, $internet_no, $pic_name, $pic_contact, 
+                      $masa_aktif, $masa_paket, $waktu_add, $dev_id);
     $stmt->execute();
 
     // Ambil user_id
@@ -385,9 +428,9 @@ if (
         $row = $result->fetch_assoc();
         $user_id = $row['user_id'];
 
-        // Update username
-        $stmt3 = $conn->prepare("UPDATE users SET username = ? WHERE id = ?");
-        $stmt3->bind_param("si", $username, $user_id);
+        // Update username & email
+        $stmt3 = $conn->prepare("UPDATE users SET username = ?, email = ? WHERE id = ?");
+        $stmt3->bind_param("ssi", $username, $email, $user_id);
         $stmt3->execute();
     }
 }
@@ -587,4 +630,17 @@ if (
         exit();
     }
 }
+
+
+
+
+function nullIfEmpty($value) {
+    if (!isset($value)) return null;
+    
+    // trim supaya '   ' juga dianggap kosong
+    $value = trim($value);
+    
+    return $value === '' ? null : $value;
+}
+
 ?>
