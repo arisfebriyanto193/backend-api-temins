@@ -307,14 +307,14 @@ if ($method === 'POST') {
         $pic_name = mysqli_real_escape_string($conn, $input['pic_name']);
         $timezone = mysqli_real_escape_string($conn, $input['timezone']);
 
-        $dev_name = mysqli_real_escape_string($conn, $input['device_name']);
+        $dev_name = mysqli_real_escape_string($conn, $input['dev_name']);
         $owner = mysqli_real_escape_string($conn, $input['owner']);
         $city = mysqli_real_escape_string($conn, $input['city']);
         $loc = mysqli_real_escape_string($conn, $input['lokasi']);
         $inet = mysqli_real_escape_string($conn, $input['internet_no']);
         $pic = mysqli_real_escape_string($conn, $input['pic_name']);
-        $dev_type = mysqli_real_escape_string($conn, $input['device_type']);
-        $dev_id = mysqli_real_escape_string($conn, $input['device_unique_id']);
+        $dev_type = mysqli_real_escape_string($conn, $input['dev_type']);
+        $dev_id = mysqli_real_escape_string($conn, $input['dev_id']);
         $email = mysqli_real_escape_string($conn, $input['email']);
         $masa_aktif = nullIfEmpty($input['masa_aktif']);
         $masa_paket = nullIfEmpty($input['masa_paket']);
