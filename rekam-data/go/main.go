@@ -439,7 +439,7 @@ func initPostgres() error {
 		return fmt.Errorf("failed to ping postgres: %w", err)
 	}
 	
-	log.Println("✅ [PostgreSQL] Global connection pool initialized (Max: 5 conns)")
+	//log.Println("✅ [PostgreSQL] Global connection pool initialized (Max: 5 conns)")
 	return nil
 }
 
@@ -463,7 +463,7 @@ func initMySQL() error {
 		return fmt.Errorf("failed to ping mysql: %w", err)
 	}
 	
-	log.Println("✅ [MySQL] Global connection pool initialized (Max: 3 conns)")
+	//log.Println("✅ [MySQL] Global connection pool initialized (Max: 3 conns)")
 	return nil
 }
 
@@ -474,48 +474,48 @@ func initMySQL() error {
 // checkPostgresConnection uses global pool (no new connections)
 func checkPostgresConnection() bool {
 	if pgDB == nil {
-		log.Println("❌ [PostgreSQL] Global pool not initialized")
+		//log.Println("❌ [PostgreSQL] Global pool not initialized")
 		return false
 	}
 	
 	// Just ping the existing pool
 	if err := pgDB.Ping(); err != nil {
-		log.Printf("❌ [PostgreSQL] Ping FAILED: %v\n", err)
+		//log.Printf("❌ [PostgreSQL] Ping FAILED: %v\n", err)
 		return false
 	}
 	
-	log.Println("✅ [PostgreSQL] Database Connected")
+	//log.Println("✅ [PostgreSQL] Database Connected")
 	return true
 }
 
 // checkMySQLConnection uses global pool (no new connections)
 func checkMySQLConnection() bool {
 	if mysqlDB == nil {
-		log.Println("❌ [MySQL] Global pool not initialized")
+		//log.Println("❌ [MySQL] Global pool not initialized")
 		return false
 	}
 	
 	// Just ping the existing pool
 	if err := mysqlDB.Ping(); err != nil {
-		log.Printf("❌ [MySQL] Ping FAILED: %v\n", err)
+		//log.Printf("❌ [MySQL] Ping FAILED: %v\n", err)
 		return false
 	}
 	
-	log.Println("✅ [MySQL] Database Connected")
+	//log.Println("✅ [MySQL] Database Connected")
 	return true
 }
 
 // getAllSensorHeightsFromMySQL uses global MySQL pool
 func getAllSensorHeightsFromMySQL() map[string]float64 {
 	if mysqlDB == nil {
-		log.Println("❌ [MySQL] Global pool not initialized")
+		//log.Println("❌ [MySQL] Global pool not initialized")
 		return make(map[string]float64)
 	}
 	
 	// Use global pool - no sql.Open()
 	rows, err := mysqlDB.Query("SELECT device_unique_id, tinggi_sensor FROM device_settings")
 	if err != nil {
-		log.Printf("❌ [MySQL] Query error: %v\n", err)
+		//log.Printf("❌ [MySQL] Query error: %v\n", err)
 		return make(map[string]float64)
 	}
 	defer rows.Close()
@@ -545,16 +545,16 @@ func getAllSensorHeightsFromMySQL() map[string]float64 {
 	}
 	
 	if skippedCount > 0 {
-		log.Printf("⚠️ [MySQL] Skipped %d devices with invalid tinggi_sensor\n", skippedCount)
+		//log.Printf("⚠️ [MySQL] Skipped %d devices with invalid tinggi_sensor\n", skippedCount)
 	}
 	
-	log.Printf("✅ [MySQL] Successfully loaded %d devices into cache\n", len(mysqlData))
+	//log.Printf("✅ [MySQL] Successfully loaded %d devices into cache\n", len(mysqlData))
 	
 	// Print cache contents for debugging
 	if len(mysqlData) > 0 {
-		log.Println("📋 [MySQL] Cache contents:")
+		//log.Println("📋 [MySQL] Cache contents:")
 		for devID, height := range mysqlData {
-			log.Printf("   - %s: %.2f cm\n", devID, height)
+			//log.Printf("   - %s: %.2f cm\n", devID, height)
 		}
 	}
 	
@@ -1017,8 +1017,8 @@ func flushToDB() {
 						} else {
 							//log.Printf("⚠️ [DB] Transaction rolled back due to %d failures\n", failCount)
 							//logWarning("DB", fmt.Sprintf("Transaction rolled back (%d failures)", failCount), map[string]interface{}{
-								"failed_count": failCount,
-							})
+							//	"failed_count": failCount,
+							//})
 							// tx.Rollback() will be called by defer
 						}
 					}
