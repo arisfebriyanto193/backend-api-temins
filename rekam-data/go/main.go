@@ -696,12 +696,12 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 			
 			awlrCalculationCount++
 			
-			log.Printf("🌊 [AWLR] Calculation #%d SUCCESS:\n", awlrCalculationCount)
-			log.Printf("   Device: %s\n", deviceID)
-			log.Printf("   TUC: %.2f cm\n", value)
-			log.Printf("   Sensor Height: %.2f cm\n", tinggiSensor)
-			log.Printf("   Water Level: %.2f cm\n", tinggiAir)
-			log.Printf("   Buffer Key: %s\n", airKey)
+			//log.Printf("🌊 [AWLR] Calculation #%d SUCCESS:\n", awlrCalculationCount)
+			//log.Printf("   Device: %s\n", deviceID)
+			//log.Printf("   TUC: %.2f cm\n", value)
+			//log.Printf("   Sensor Height: %.2f cm\n", tinggiSensor)
+			//log.Printf("   Water Level: %.2f cm\n", tinggiAir)
+			//log.Printf("   Buffer Key: %s\n", airKey)
 		} else {
 			log.Printf("⚠️ [AWLR] FAILED: Device=%s not found in cache\n", deviceID)
 			log.Printf("   Available devices in cache: %d\n", cacheSize)
@@ -867,7 +867,7 @@ func onConnect(client mqtt.Client) {
 	mapLock.RUnlock()
 	
 	if deviceCount > 0 {
-		log.Printf("📡 [MQTT] Monitoring %d configured devices\n", deviceCount)
+//		log.Printf("📡 [MQTT] Monitoring %d configured devices\n", deviceCount)
 	}
 }
 
@@ -933,7 +933,7 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 		}
 	}
 	
-	log.Printf("   ✅ Parsed Value: %.2f\n", value)
+//	log.Printf("   ✅ Parsed Value: %.2f\n", value)
 	
 	// Send to WebSocket
 	LogInfo("MQTT", fmt.Sprintf("Data received from %s", deviceID), map[string]interface{}{
@@ -953,11 +953,11 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 
 // flushToDB - FIXED VERSION (uses global pool + proper transaction handling)
 func flushToDB() {
-	log.Printf("⏱️ [DB] Flush Thread Active (Every %d minutes) - WIB\n", FLUSH_INTERVAL_MINUTES)
+//	log.Printf("⏱️ [DB] Flush Thread Active (Every %d minutes) - WIB\n", FLUSH_INTERVAL_MINUTES)
 	
 	nextInterval, secondsToWait := getNext5MinInterval()
 	log.Printf("⏰ [DB] Next flush at: %s WIB\n", formatWIBTimestamp(nextInterval))
-	log.Printf("⏳ [DB] Waiting %.0f seconds...\n", secondsToWait.Seconds())
+//	log.Printf("⏳ [DB] Waiting %.0f seconds...\n", secondsToWait.Seconds())
 	
 	time.Sleep(secondsToWait)
 	
@@ -965,18 +965,18 @@ func flushToDB() {
 		batchTimestamp := getRounded5MinTimestamp()
 		batchTimestampStr := formatWIBTimestamp(batchTimestamp)
 		
-		log.Println("\n" + strings.Repeat("=", 70))
-		log.Printf("⏰ [DB] FLUSH TRIGGERED at %s WIB\n", batchTimestampStr)
-		log.Println(strings.Repeat("=", 70))
+	//	log.Println("\n" + strings.Repeat("=", 70))
+		//log.Printf("⏰ [DB] FLUSH TRIGGERED at %s WIB\n", batchTimestampStr)
+		//log.Println(strings.Repeat("=", 70))
 		
 		dataToSave := readAndClearBuffer()
 		
 		if len(dataToSave) == 0 {
-			log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
-			log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
-			log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
+		//	log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
+		//	log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
+		//	log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
 			log.Printf("   🔄 CH Restart Detections: %d\n", restartDetected)
-			log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
+		//	log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
 		} else {
 			// CRITICAL FIX: Use global pgDB pool - NO sql.Open()
 			if pgDB == nil {
@@ -1089,18 +1089,18 @@ func configWatcher(client mqtt.Client) {
 			for topic := range newTopics {
 				if !subscribedTopics[topic] {
 					client.Subscribe(topic, 0, nil)
-					log.Printf("   ➕ Subscribed: %s\n", topic)
+				//	log.Printf("   ➕ Subscribed: %s\n", topic)
 				}
 			}
 			
 			subscribedTopics = newTopics
-			log.Printf("✅ [WATCHER] Monitoring %d devices with %d topics\n", len(deviceMap), len(subscribedTopics))
+			//log.Printf("✅ [WATCHER] Monitoring %d devices with %d topics\n", len(deviceMap), len(subscribedTopics))
 		}
 	}
 }
 
 func autoRefreshSensorCache() {
-	log.Printf("🔄 [AUTO-REFRESH] Cache refresh thread started (Every %v)\n", CACHE_REFRESH_INTERVAL)
+//	log.Printf("🔄 [AUTO-REFRESH] Cache refresh thread started (Every %v)\n", CACHE_REFRESH_INTERVAL)
 	
 	iteration := 0
 	for {
@@ -1158,13 +1158,13 @@ func main() {
 	CONFIG_JSON_PATH = filepath.Join(baseDir, "../py/1.json")
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
 	
-	log.Println("\n" + strings.Repeat("=", 70))
-	log.Println("🚀 TEMINS IoT Logger - Go Version (WITH CH RESTART DETECTION)")
-	log.Println(strings.Repeat("=", 70))
-	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
-	log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
-	log.Printf("📁 Buffer Path: %s\n", BUFFER_FILE_PATH)
-	log.Println(strings.Repeat("=", 70) + "\n")
+	// log.Println("\n" + strings.Repeat("=", 70))
+	// log.Println("🚀 TEMINS IoT Logger - Go Version (WITH CH RESTART DETECTION)")
+	// log.Println(strings.Repeat("=", 70))
+	// log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
+	// log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
+	// log.Printf("📁 Buffer Path: %s\n", BUFFER_FILE_PATH)
+	// log.Println(strings.Repeat("=", 70) + "\n")
 	
 	// CRITICAL: Initialize global connection pools FIRST
 	log.Println("🔄 [INIT] Initializing database connection pools...")
