@@ -679,8 +679,8 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		_, existsInCache := sensorHeightCache[deviceID]
 		cacheLock.RUnlock()
 		
-		//log.Printf("🔍 [AWLR-DEBUG] Checking for device %s: cache_size=%d, exists=%v\n", 
-		//	deviceID, cacheSize, existsInCache)
+		log.Printf("🔍 [AWLR-DEBUG] Checking for device %s: cache_size=%d, exists=%v\n", 
+			deviceID, cacheSize, existsInCache)
 		
 		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 			tinggiAir := tinggiSensor - value
