@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"net/http"
+	"io"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	_ "github.com/go-sql-driver/mysql"
@@ -269,41 +271,70 @@ func getRounded5MinTimestamp() time.Time {
 // 	return newAccumulation, false
 // }
 //Ambil cha dari db
-func getLastCHAFromDB(deviceID string) float64 {
-	if pgDB == nil {
-		log.Println("❌ [DB] PostgreSQL pool not initialized")
-		return 0
-	}
+func getLastCHAFromAPI(deviceID string) float64 {
 
-	var lastCHA sql.NullFloat64
+	url := fmt.Sprintf(
+		"https://be-data.dash.temins.id/api/get-data?device_id=%s&jenis=cha&periode=hari&zonawaktu=WIB&limit=1",
+		deviceID,
+	)
 
-	query := `
-		SELECT value 
-		FROM sensor_logs 
-		WHERE device_unique_id = $1 
-		AND parameter_name = 'cha'
-		ORDER BY recorded_at DESC 
-		LIMIT 1
-	`
-
-	err := pgDB.QueryRow(query, deviceID).Scan(&lastCHA)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			log.Printf("❌ [DB] Error getting last CHA: %v\n", err)
-		}
+		log.Printf("❌ [API] Request error: %v\n", err)
 		return 0
 	}
 
-	if lastCHA.Valid {
-		return lastCHA.Float64
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer RAHASIA_TOKEN_KAMU")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
 	}
 
-	return 0
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("❌ [API] Call error: %v\n", err)
+		return 0
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("❌ [API] Read error: %v\n", err)
+		return 0
+	}
+
+	var apiResponse struct {
+		Status bool `json:"status"`
+		Data   []struct {
+			Value string `json:"value"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		log.Printf("❌ [API] JSON parse error: %v\n", err)
+		return 0
+	}
+
+	if !apiResponse.Status || len(apiResponse.Data) == 0 {
+		log.Printf("⚠️ [API] No CHA data found for %s\n", deviceID)
+		return 0
+	}
+
+	lastValue, err := strconv.ParseFloat(apiResponse.Data[0].Value, 64)
+	if err != nil {
+		log.Printf("❌ [API] Value parse error: %v\n", err)
+		return 0
+	}
+
+	log.Printf("📦 [API] Last CHA from API for %s = %.2f mm\n", deviceID, lastValue)
+
+	return lastValue
 }
 
 
-
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+
 	now := getWIBTime()
 	currentDate := formatWIBDate(now)
 
@@ -313,22 +344,22 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	lastDate, dateExists := lastChDate[deviceID]
 
 	// =====================================
-	// HARI BARU
+	// HARI BARU → Ambil dari API
 	// =====================================
 	if !dateExists || lastDate != currentDate {
 
 		log.Printf("🌅 [CH] New day detected for %s", deviceID)
 
-		// Ambil CHA terakhir dari database
-		lastCHAFromDB := getLastCHAFromDB(deviceID)
+		lastCHAFromAPI := getLastCHAFromAPI(deviceID)
 
-		log.Printf("📦 [CH] Last CHA from DB: %.2f mm", lastCHAFromDB)
-
-		newAccumulation := lastCHAFromDB + chValue
+		newAccumulation := lastCHAFromAPI + chValue
 
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
 		accumulatedCh[deviceID] = newAccumulation
+
+		log.Printf("📊 [CH] New accumulation (API baseline): %.2f + %.2f = %.2f mm",
+			lastCHAFromAPI, chValue, newAccumulation)
 
 		return newAccumulation, false
 	}
@@ -337,17 +368,18 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	currentAccumulation := accumulatedCh[deviceID]
 
 	// =====================================
-	// RESTART (nilai turun, hari sama)
+	// RESTART (hari sama & nilai turun)
 	// =====================================
 	if chValue < lastValue {
-		restartDetected++
 
-		log.Printf("🔄 [CH] Restart detected (same day) for %s", deviceID)
+		restartDetected++
 
 		newAccumulation := currentAccumulation + chValue
 
 		accumulatedCh[deviceID] = newAccumulation
 		lastChValue[deviceID] = chValue
+
+		log.Printf("🔄 [CH] Restart detected (same day) → +%.2f mm", chValue)
 
 		return newAccumulation, true
 	}
@@ -361,9 +393,10 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	accumulatedCh[deviceID] = newAccumulation
 	lastChValue[deviceID] = chValue
 
+	log.Printf("🌧️ [CH] Normal increase → +%.2f mm", diff)
+
 	return newAccumulation, false
 }
-
 
 
 
@@ -439,7 +472,7 @@ func initPostgres() error {
 		return fmt.Errorf("failed to ping postgres: %w", err)
 	}
 	
-	//log.Println("✅ [PostgreSQL] Global connection pool initialized (Max: 5 conns)")
+	log.Println("✅ [PostgreSQL] Global connection pool initialized (Max: 5 conns)")
 	return nil
 }
 
@@ -463,7 +496,7 @@ func initMySQL() error {
 		return fmt.Errorf("failed to ping mysql: %w", err)
 	}
 	
-	//log.Println("✅ [MySQL] Global connection pool initialized (Max: 3 conns)")
+	log.Println("✅ [MySQL] Global connection pool initialized (Max: 3 conns)")
 	return nil
 }
 
@@ -474,48 +507,48 @@ func initMySQL() error {
 // checkPostgresConnection uses global pool (no new connections)
 func checkPostgresConnection() bool {
 	if pgDB == nil {
-		//log.Println("❌ [PostgreSQL] Global pool not initialized")
+		log.Println("❌ [PostgreSQL] Global pool not initialized")
 		return false
 	}
 	
 	// Just ping the existing pool
 	if err := pgDB.Ping(); err != nil {
-		//log.Printf("❌ [PostgreSQL] Ping FAILED: %v\n", err)
+		log.Printf("❌ [PostgreSQL] Ping FAILED: %v\n", err)
 		return false
 	}
 	
-	//log.Println("✅ [PostgreSQL] Database Connected")
+	log.Println("✅ [PostgreSQL] Database Connected")
 	return true
 }
 
 // checkMySQLConnection uses global pool (no new connections)
 func checkMySQLConnection() bool {
 	if mysqlDB == nil {
-		//log.Println("❌ [MySQL] Global pool not initialized")
+		log.Println("❌ [MySQL] Global pool not initialized")
 		return false
 	}
 	
 	// Just ping the existing pool
 	if err := mysqlDB.Ping(); err != nil {
-		//log.Printf("❌ [MySQL] Ping FAILED: %v\n", err)
+		log.Printf("❌ [MySQL] Ping FAILED: %v\n", err)
 		return false
 	}
 	
-	//log.Println("✅ [MySQL] Database Connected")
+	log.Println("✅ [MySQL] Database Connected")
 	return true
 }
 
 // getAllSensorHeightsFromMySQL uses global MySQL pool
 func getAllSensorHeightsFromMySQL() map[string]float64 {
 	if mysqlDB == nil {
-		//log.Println("❌ [MySQL] Global pool not initialized")
+		log.Println("❌ [MySQL] Global pool not initialized")
 		return make(map[string]float64)
 	}
 	
 	// Use global pool - no sql.Open()
 	rows, err := mysqlDB.Query("SELECT device_unique_id, tinggi_sensor FROM device_settings")
 	if err != nil {
-		//log.Printf("❌ [MySQL] Query error: %v\n", err)
+		log.Printf("❌ [MySQL] Query error: %v\n", err)
 		return make(map[string]float64)
 	}
 	defer rows.Close()
@@ -545,16 +578,16 @@ func getAllSensorHeightsFromMySQL() map[string]float64 {
 	}
 	
 	if skippedCount > 0 {
-		//log.Printf("⚠️ [MySQL] Skipped %d devices with invalid tinggi_sensor\n", skippedCount)
+		log.Printf("⚠️ [MySQL] Skipped %d devices with invalid tinggi_sensor\n", skippedCount)
 	}
 	
-	//log.Printf("✅ [MySQL] Successfully loaded %d devices into cache\n", len(mysqlData))
+	log.Printf("✅ [MySQL] Successfully loaded %d devices into cache\n", len(mysqlData))
 	
 	// Print cache contents for debugging
 	if len(mysqlData) > 0 {
-		//log.Println("📋 [MySQL] Cache contents:")
+		log.Println("📋 [MySQL] Cache contents:")
 		for devID, height := range mysqlData {
-			//log.Printf("   - %s: %.2f cm\n", devID, height)
+			log.Printf("   - %s: %.2f cm\n", devID, height)
 		}
 	}
 	
@@ -844,9 +877,9 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	
 	// Log setiap message yang diterima
-	log.Printf("\n📨 [MQTT] Message #%d received:\n", mqttMessageCount)
-	log.Printf("   Topic: %s\n", topic)
-	log.Printf("   Payload: %s\n", payload)
+	//log.Printf("\n📨 [MQTT] Message #%d received:\n", mqttMessageCount)
+	//log.Printf("   Topic: %s\n", topic)
+//	log.Printf("   Payload: %s\n", payload)
 	
 	parts := strings.Split(topic, "/")
 	if len(parts) < 4 || parts[2] != "data" {
@@ -857,8 +890,8 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	deviceID := parts[1]
 	parameter := parts[len(parts)-1]
 	
-	log.Printf("   Device ID: %s\n", deviceID)
-	log.Printf("   Parameter: %s\n", parameter)
+	//log.Printf("   Device ID: %s\n", deviceID)
+//	log.Printf("   Parameter: %s\n", parameter)
 	
 	// Check device type
 	mapLock.RLock()
@@ -939,27 +972,27 @@ func flushToDB() {
 		dataToSave := readAndClearBuffer()
 		
 		if len(dataToSave) == 0 {
-			//log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
-			//log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
-			//log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
-			//log.Printf("   🔄 CH Restart Detections: %d\n", restartDetected)
-			//log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
+			log.Printf("\nℹ️ [DB] No data to flush at %s WIB\n", batchTimestampStr)
+			log.Printf("   📊 MQTT Messages received: %d\n", mqttMessageCount)
+			log.Printf("   🌊 AWLR Calculations: %d\n", awlrCalculationCount)
+			log.Printf("   🔄 CH Restart Detections: %d\n", restartDetected)
+			log.Printf("   🔌 MQTT Connected: %v\n", mqttConnected)
 		} else {
 			// CRITICAL FIX: Use global pgDB pool - NO sql.Open()
 			if pgDB == nil {
-				//log.Printf("❌ [DB] Global PostgreSQL pool not initialized\n")
+				log.Printf("❌ [DB] Global PostgreSQL pool not initialized\n")
 			} else {
 				// Start transaction with proper error handling
 				tx, err := pgDB.Begin()
 				if err != nil {
-					//log.Printf("❌ [DB] Transaction error: %v\n", err)
+					log.Printf("❌ [DB] Transaction error: %v\n", err)
 				} else {
 					// CRITICAL: Always rollback on panic or error
 					defer tx.Rollback()
 					
-					stmt, err := tx.Prepare("INSERT INTO sensor_//logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
+					stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
 					if err != nil {
-						//log.Printf("❌ [DB] Prepare error: %v\n", err)
+						log.Printf("❌ [DB] Prepare error: %v\n", err)
 						// tx.Rollback() will be called by defer
 					} else {
 						defer stmt.Close()
@@ -970,7 +1003,7 @@ func flushToDB() {
 						for _, d := range dataToSave {
 							_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
 							if err != nil {
-								//log.Printf("❌ [DB] Insert failed for %s|%s: %v\n", d.DeviceID, d.Parameter, err)
+								log.Printf("❌ [DB] Insert failed for %s|%s: %v\n", d.DeviceID, d.Parameter, err)
 								failCount++
 							} else {
 								successCount++
@@ -980,20 +1013,20 @@ func flushToDB() {
 						// Only commit if no errors
 						if failCount == 0 {
 							if err := tx.Commit(); err != nil {
-								//log.Printf("❌ [DB] Commit error: %v\n", err)
-								//logError("DB", "Failed to commit transaction", map[string]interface{}{
+								log.Printf("❌ [DB] Commit error: %v\n", err)
+								LogError("DB", "Failed to commit transaction", map[string]interface{}{
 									"error": err.Error(),
 								})
 							} else {
-								//log.Println("\n💾 DATABASE PERSISTENCE REPORT")
-								//log.Printf("🕐 Timestamp (WIB): %s\n", batchTimestampStr)
-								//log.Printf("📊 Total: %d records (%d success, %d failed)\n", len(dataToSave), successCount, failCount)
+								log.Println("\n💾 DATABASE PERSISTENCE REPORT")
+								log.Printf("🕐 Timestamp (WIB): %s\n", batchTimestampStr)
+								log.Printf("📊 Total: %d records (%d success, %d failed)\n", len(dataToSave), successCount, failCount)
 								
 								// Update flush stats
 								updateFlushStats(successCount)
 								
 								// Send to WebSocket
-								//logSuccess("DB", fmt.Sprintf("Flushed %d records to database", successCount), map[string]interface{}{
+								LogSuccess("DB", fmt.Sprintf("Flushed %d records to database", successCount), map[string]interface{}{
 									"timestamp":     batchTimestampStr,
 									"total_records": len(dataToSave),
 									"success":       successCount,
@@ -1009,16 +1042,16 @@ func flushToDB() {
 									} else if d.Parameter == "ch" {
 										emoji = "🌧️"
 									}
-									//log.Printf("   %s %s | %s | %s = %.2f\n", emoji, d.DeviceID, d.DeviceType, d.Parameter, d.Value)
+									log.Printf("   %s %s | %s | %s = %.2f\n", emoji, d.DeviceID, d.DeviceType, d.Parameter, d.Value)
 								}
 								
-								//log.Println(strings.Repeat("=", 70) + "\n")
+								log.Println(strings.Repeat("=", 70) + "\n")
 							}
 						} else {
-							//log.Printf("⚠️ [DB] Transaction rolled back due to %d failures\n", failCount)
-							//logWarning("DB", fmt.Sprintf("Transaction rolled back (%d failures)", failCount), map[string]interface{}{
-							//	"failed_count": failCount,
-							//})
+							log.Printf("⚠️ [DB] Transaction rolled back due to %d failures\n", failCount)
+							LogWarning("DB", fmt.Sprintf("Transaction rolled back (%d failures)", failCount), map[string]interface{}{
+								"failed_count": failCount,
+							})
 							// tx.Rollback() will be called by defer
 						}
 					}
@@ -1027,7 +1060,7 @@ func flushToDB() {
 		}
 		
 		nextInterval, secondsToWait = getNext5MinInterval()
-		//log.Printf("⏰ [DB] Next flush at: %s WIB (in %.0f seconds)\n\n", 
+		log.Printf("⏰ [DB] Next flush at: %s WIB (in %.0f seconds)\n\n", 
 			formatWIBTimestamp(nextInterval), secondsToWait.Seconds())
 		time.Sleep(secondsToWait)
 	}
@@ -1044,7 +1077,7 @@ func configWatcher(client mqtt.Client) {
 		
 		if fileInfo.ModTime() != lastFileModTime {
 			lastFileModTime = fileInfo.ModTime()
-			//log.Println("\n🔄 [WATCHER] Config file changed, reloading...")
+			log.Println("\n🔄 [WATCHER] Config file changed, reloading...")
 			
 			newTopics, newMap := updateConfigFromJSON()
 			
@@ -1056,30 +1089,30 @@ func configWatcher(client mqtt.Client) {
 			for topic := range newTopics {
 				if !subscribedTopics[topic] {
 					client.Subscribe(topic, 0, nil)
-					//log.Printf("   ➕ Subscribed: %s\n", topic)
+					log.Printf("   ➕ Subscribed: %s\n", topic)
 				}
 			}
 			
 			subscribedTopics = newTopics
-			//log.Printf("✅ [WATCHER] Monitoring %d devices with %d topics\n", len(deviceMap), len(subscribedTopics))
+			log.Printf("✅ [WATCHER] Monitoring %d devices with %d topics\n", len(deviceMap), len(subscribedTopics))
 		}
 	}
 }
 
 func autoRefreshSensorCache() {
-	//log.Printf("🔄 [AUTO-REFRESH] Cache refresh thread started (Every %v)\n", CACHE_REFRESH_INTERVAL)
+	log.Printf("🔄 [AUTO-REFRESH] Cache refresh thread started (Every %v)\n", CACHE_REFRESH_INTERVAL)
 	
 	iteration := 0
 	for {
 		time.Sleep(CACHE_REFRESH_INTERVAL)
 		iteration++
 		
-		//log.Printf("\n🔄 [AUTO-REFRESH #%d] Refreshing cache...\n", iteration)
+		log.Printf("\n🔄 [AUTO-REFRESH #%d] Refreshing cache...\n", iteration)
 		
 		// Uses global mysqlDB pool - safe
 		mysqlData := getAllSensorHeightsFromMySQL()
 		if len(mysqlData) == 0 {
-			//log.Printf("⚠️ [AUTO-REFRESH #%d] No data from MySQL\n", iteration)
+			log.Printf("⚠️ [AUTO-REFRESH #%d] No data from MySQL\n", iteration)
 			continue
 		}
 		
@@ -1087,7 +1120,7 @@ func autoRefreshSensorCache() {
 		sensorHeightCache = mysqlData
 		cacheLock.Unlock()
 		
-		//log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n\n", iteration, len(mysqlData))
+		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n\n", iteration, len(mysqlData))
 	}
 }
 
@@ -1108,8 +1141,8 @@ func statusMonitor() {
 		chOffsetCount := len(chBaseOffset)
 		chLock.RUnlock()
 		
-		//log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d (offset: %d) | Connected: %v\n\n",
-		//	mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, chOffsetCount, mqttConnected)
+		log.Printf("\n📊 [STATUS] Messages: %d | AWLR: %d | CH-Restart: %d | Devices: %d | Cache: %d | CH-Track: %d (offset: %d) | Connected: %v\n\n",
+			mqttMessageCount, awlrCalculationCount, restartDetected, deviceCount, cacheCount, chDeviceCount, chOffsetCount, mqttConnected)
 	}
 }
 
@@ -1117,41 +1150,41 @@ func statusMonitor() {
 // MAIN
 // ==========================
 func main() {
-	// Setup //logging
-	//log.SetFlags(//log.Ldate | //log.Ltime)
+	// Setup logging
+	log.SetFlags(log.Ldate | log.Ltime)
 	
 	// Setup paths
 	baseDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	CONFIG_JSON_PATH = filepath.Join(baseDir, "../py/1.json")
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
 	
-	//log.Println("\n" + strings.Repeat("=", 70))
-	//log.Println("🚀 TEMINS IoT //logger - Go Version (WITH CH RESTART DETECTION)")
-	//log.Println(strings.Repeat("=", 70))
-	//log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
-	//log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
-	//log.Printf("📁 Buffer Path: %s\n", BUFFER_FILE_PATH)
-	//log.Println(strings.Repeat("=", 70) + "\n")
+	log.Println("\n" + strings.Repeat("=", 70))
+	log.Println("🚀 TEMINS IoT Logger - Go Version (WITH CH RESTART DETECTION)")
+	log.Println(strings.Repeat("=", 70))
+	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
+	log.Printf("📁 Config Path: %s\n", CONFIG_JSON_PATH)
+	log.Printf("📁 Buffer Path: %s\n", BUFFER_FILE_PATH)
+	log.Println(strings.Repeat("=", 70) + "\n")
 	
 	// CRITICAL: Initialize global connection pools FIRST
-	//log.Println("🔄 [INIT] Initializing database connection pools...")
+	log.Println("🔄 [INIT] Initializing database connection pools...")
 	if err := initPostgres(); err != nil {
-		//log.Fatalf("❌ Cannot proceed without PostgreSQL: %v\n", err)
+		log.Fatalf("❌ Cannot proceed without PostgreSQL: %v\n", err)
 	}
 	if err := initMySQL(); err != nil {
-		//log.Fatalf("❌ Cannot proceed without MySQL: %v\n", err)
+		log.Fatalf("❌ Cannot proceed without MySQL: %v\n", err)
 	}
 	
 	// Verify connections
 	if !checkPostgresConnection() {
-		//log.Fatal("❌ PostgreSQL connection verification failed")
+		log.Fatal("❌ PostgreSQL connection verification failed")
 	}
 	if !checkMySQLConnection() {
-		//log.Fatal("❌ MySQL connection verification failed")
+		log.Fatal("❌ MySQL connection verification failed")
 	}
 	
 	// Load config first
-	//log.Println("🔄 [INIT] Loading device configuration...")
+	log.Println("🔄 [INIT] Loading device configuration...")
 	newTopics, newMap := updateConfigFromJSON()
 	mapLock.Lock()
 	deviceMap = newMap
@@ -1159,14 +1192,14 @@ func main() {
 	mapLock.Unlock()
 	
 	// Initial cache load
-	//log.Println("🔄 [INIT] Loading initial sensor height cache...")
+	log.Println("🔄 [INIT] Loading initial sensor height cache...")
 	initialData := getAllSensorHeightsFromMySQL()
 	cacheLock.Lock()
 	sensorHeightCache = initialData
 	cacheLock.Unlock()
-	//log.Printf("✅ [INIT] Loaded %d devices into cache\n\n", len(initialData))
+	log.Printf("✅ [INIT] Loaded %d devices into cache\n\n", len(initialData))
 	
-	// MQTT setup with enhanced //logging
+	// MQTT setup with enhanced logging
 	mqtt.ERROR = log.New(os.Stdout, "[MQTT-ERROR] ", log.LstdFlags)
 	mqtt.CRITICAL = log.New(os.Stdout, "[MQTT-CRITICAL] ", log.LstdFlags)
 	mqtt.WARN = log.New(os.Stdout, "[MQTT-WARN] ", log.LstdFlags)
@@ -1202,22 +1235,22 @@ func main() {
 	// Connect MQTT
 	log.Printf("🔌 Connecting to wss://%s:%d/mqtt...\n", BROKER_HOST, BROKER_PORT)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		//log.Fatalf("❌ MQTT connection failed: %v\n", token.Error())
+		log.Fatalf("❌ MQTT connection failed: %v\n", token.Error())
 	}
 	
-	//log.Println("✅ MQTT Connected, starting config watcher...\n")
-	//log.Println("📡 Waiting for MQTT messages...\n")
+	log.Println("✅ MQTT Connected, starting config watcher...\n")
+	log.Println("📡 Waiting for MQTT messages...\n")
 	
 	// Cleanup on exit
 	defer func() {
-		//log.Println("\n🛑 Shutting down gracefully...")
+		log.Println("\n🛑 Shutting down gracefully...")
 		if pgDB != nil {
 			pgDB.Close()
-			//log.Println("✅ PostgreSQL pool closed")
+			log.Println("✅ PostgreSQL pool closed")
 		}
 		if mysqlDB != nil {
 			mysqlDB.Close()
-			//log.Println("✅ MySQL pool closed")
+			log.Println("✅ MySQL pool closed")
 		}
 	}()
 	
