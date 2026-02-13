@@ -898,11 +898,11 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 	// deviceType, deviceExists := deviceMap[deviceID]
 	// mapLock.RUnlock()
 	
-	if deviceExists {
-	//	log.Printf("   Device Type: %s\n", deviceType)
-	} else {
-	//	log.Printf("   ⚠️ Device not in config map\n")
-	}
+	// if deviceExists {
+	// //	log.Printf("   Device Type: %s\n", deviceType)
+	// } else {
+	// //	log.Printf("   ⚠️ Device not in config map\n")
+	// }
 	
 	var value float64
 	
