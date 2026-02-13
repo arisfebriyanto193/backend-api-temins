@@ -667,8 +667,8 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 			Timestamp:  formatWIBTimestamp(getWIBTime()),
 		}
 		
-		log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
-			deviceID, deviceType, parameter, value)
+	//	log.Printf("📥 [BUFFER] Saved: Device=%s, Type=%s, Param=%s, Value=%.2f\n", 
+	//		deviceID, deviceType, parameter, value)
 	}
 	
 	// AWLR Calculation - ENHANCED LOGGING
@@ -679,8 +679,8 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		_, existsInCache := sensorHeightCache[deviceID]
 		cacheLock.RUnlock()
 		
-		log.Printf("🔍 [AWLR-DEBUG] Checking for device %s: cache_size=%d, exists=%v\n", 
-			deviceID, cacheSize, existsInCache)
+		//log.Printf("🔍 [AWLR-DEBUG] Checking for device %s: cache_size=%d, exists=%v\n", 
+		//	deviceID, cacheSize, existsInCache)
 		
 		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 			tinggiAir := tinggiSensor - value
@@ -722,7 +722,7 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		if err := ioutil.WriteFile(BUFFER_FILE_PATH, jsonData, 0644); err != nil {
 			log.Printf("❌ [BUFFER] Write error: %v\n", err)
 		} else {
-			log.Printf("💾 [BUFFER] File updated successfully, total entries: %d\n", len(data))
+		//	log.Printf("💾 [BUFFER] File updated successfully, total entries: %d\n", len(data))
 		}
 	}
 }
@@ -936,13 +936,13 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 //	log.Printf("   ✅ Parsed Value: %.2f\n", value)
 	
 	// Send to WebSocket
-	LogInfo("MQTT", fmt.Sprintf("Data received from %s", deviceID), map[string]interface{}{
-		"device_id":   deviceID,
-		"device_type": deviceType,
-		"parameter":   parameter,
-		"value":       value,
-		"topic":       topic,
-	})
+//	LogInfo("MQTT", fmt.Sprintf("Data received from %s", deviceID), map[string]interface{}{
+//		"device_id":   deviceID,
+//		"device_type": deviceType,
+//		"parameter":   parameter,
+//		"value":       value,
+//		"topic":       topic,
+//	})
 	
 	saveToBufferFile(deviceID, parameter, value)
 }
