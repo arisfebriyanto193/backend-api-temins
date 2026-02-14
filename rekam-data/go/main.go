@@ -271,11 +271,12 @@ func getRounded5MinTimestamp() time.Time {
 // 	return newAccumulation, false
 // }
 //Ambil cha dari db
-func getLastCHAFromAPI(deviceID string) float64 {
+func getLastCHAFromAPI(deviceID string, date string) float64 {
 
 	url := fmt.Sprintf(
-		"https://be-data.dash.temins.id/api/get-data?device_id=%s&jenis=cha&periode=hari&zonawaktu=WIB&limit=1",
+		"https://be-data.dash.temins.id/api/get-data?device_id=%s&jenis=cha&tanggal=%s&limit=1",
 		deviceID,
+		date,
 	)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -317,7 +318,7 @@ func getLastCHAFromAPI(deviceID string) float64 {
 	}
 
 	if !apiResponse.Status || len(apiResponse.Data) == 0 {
-		log.Printf("⚠️ [API] No CHA data found for %s\n", deviceID)
+		log.Printf("⚠️ [API] No CHA data found for %s at %s\n", deviceID, date)
 		return 0
 	}
 
@@ -327,12 +328,10 @@ func getLastCHAFromAPI(deviceID string) float64 {
 		return 0
 	}
 
-	log.Printf("📦 [API] Last CHA from API for %s = %.2f mm\n", deviceID, lastValue)
+	log.Printf("📦 [API] Last CHA from %s for %s = %.2f mm\n", date, deviceID, lastValue)
 
 	return lastValue
 }
-
-
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	now := getWIBTime()
@@ -343,33 +342,26 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	lastDate, dateExists := lastChDate[deviceID]
 
-	// =====================================
-	// HARI BARU → Ambil dari API
-	// =====================================
+	// ==========================
+	// HARI BARU → RESET
+	// ==========================
 	if !dateExists || lastDate != currentDate {
 
-		log.Printf("🌅 [CH] New day detected for %s", deviceID)
-
-		lastCHAFromAPI := getLastCHAFromAPI(deviceID)
-
-		newAccumulation := lastCHAFromAPI + chValue
+		log.Printf("🌅 [CH] New day detected for %s → RESET", deviceID)
 
 		lastChDate[deviceID] = currentDate
 		lastChValue[deviceID] = chValue
-		accumulatedCh[deviceID] = newAccumulation
+		accumulatedCh[deviceID] = chValue
 
-		log.Printf("📊 [CH] New accumulation (API baseline): %.2f + %.2f = %.2f mm",
-			lastCHAFromAPI, chValue, newAccumulation)
-
-		return newAccumulation, false
+		return chValue, false
 	}
 
 	lastValue := lastChValue[deviceID]
 	currentAccumulation := accumulatedCh[deviceID]
 
-	// =====================================
-	// RESTART (hari sama & nilai turun)
-	// =====================================
+	// ==========================
+	// RESTART (nilai turun)
+	// ==========================
 	if chValue < lastValue {
 
 		restartDetected++
@@ -379,14 +371,14 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		accumulatedCh[deviceID] = newAccumulation
 		lastChValue[deviceID] = chValue
 
-		log.Printf("🔄 [CH] Restart detected (same day) → +%.2f mm", chValue)
+		log.Printf("🔄 [CH] Restart detected → +%.2f mm", chValue)
 
 		return newAccumulation, true
 	}
 
-	// =====================================
-	// NORMAL NAIK (hari sama)
-	// =====================================
+	// ==========================
+	// NORMAL NAIK
+	// ==========================
 	diff := chValue - lastValue
 	newAccumulation := currentAccumulation + diff
 
@@ -397,6 +389,73 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	return newAccumulation, false
 }
+
+
+
+// func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+
+// 	now := getWIBTime()
+// 	currentDate := formatWIBDate(now)
+
+// 	chLock.Lock()
+// 	defer chLock.Unlock()
+
+// 	lastDate, dateExists := lastChDate[deviceID]
+
+// 	// =====================================
+// 	// HARI BARU → Ambil dari API
+// 	// =====================================
+// 	if !dateExists || lastDate != currentDate {
+
+// 		log.Printf("🌅 [CH] New day detected for %s", deviceID)
+
+// 		lastCHAFromAPI := getLastCHAFromAPI(deviceID)
+
+// 		newAccumulation := lastCHAFromAPI + chValue
+
+// 		lastChDate[deviceID] = currentDate
+// 		lastChValue[deviceID] = chValue
+// 		accumulatedCh[deviceID] = newAccumulation
+
+// 		log.Printf("📊 [CH] New accumulation (API baseline): %.2f + %.2f = %.2f mm",
+// 			lastCHAFromAPI, chValue, newAccumulation)
+
+// 		return newAccumulation, false
+// 	}
+
+// 	lastValue := lastChValue[deviceID]
+// 	currentAccumulation := accumulatedCh[deviceID]
+
+// 	// =====================================
+// 	// RESTART (hari sama & nilai turun)
+// 	// =====================================
+// 	if chValue < lastValue {
+
+// 		restartDetected++
+
+// 		newAccumulation := currentAccumulation + chValue
+
+// 		accumulatedCh[deviceID] = newAccumulation
+// 		lastChValue[deviceID] = chValue
+
+// 		log.Printf("🔄 [CH] Restart detected (same day) → +%.2f mm", chValue)
+
+// 		return newAccumulation, true
+// 	}
+
+// 	// =====================================
+// 	// NORMAL NAIK (hari sama)
+// 	// =====================================
+// 	diff := chValue - lastValue
+// 	newAccumulation := currentAccumulation + diff
+
+// 	accumulatedCh[deviceID] = newAccumulation
+// 	lastChValue[deviceID] = chValue
+
+// 	log.Printf("🌧️ [CH] Normal increase → +%.2f mm", diff)
+
+// 	return newAccumulation, false
+// }
 
 
 
@@ -1256,6 +1315,7 @@ func main() {
 	
 	configWatcher(client)
 }
+
 
 
 
