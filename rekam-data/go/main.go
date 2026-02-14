@@ -932,7 +932,7 @@ func main() {
 	go autoRefreshSensorCache()
 	go statusMonitor()
 	go autoSaveCHState()
-	go StartLogServer(WEBSOCKET_LOG_PORT)
+	// go StartLogServer(WEBSOCKET_LOG_PORT)
 	
 	time.Sleep(1 * time.Second)
 	
@@ -958,3 +958,4 @@ func main() {
 	
 	configWatcher(client)
 }
+
