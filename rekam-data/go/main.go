@@ -292,6 +292,7 @@ func getLastCHAFromAPI(deviceID string, date string) float64 {
 }
 
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
+
 	now := getWIBTime()
 	currentDate := formatWIBDate(now)
 
@@ -300,43 +301,54 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	lastDate, dateExists := chState.LastDate[deviceID]
 
+	// ==========================
 	// HARI BARU → RESET
+	// ==========================
 	if !dateExists || lastDate != currentDate {
+
 		log.Printf("🌅 [CH] New day detected for %s → RESET", deviceID)
-		
+
 		chState.LastDate[deviceID] = currentDate
 		chState.LastValue[deviceID] = chValue
 		chState.Accumulated[deviceID] = chValue
-		
+
 		return chValue, false
 	}
 
 	lastValue := chState.LastValue[deviceID]
 	currentAccumulation := chState.Accumulated[deviceID]
 
+	// ==========================
 	// RESTART (nilai turun)
+	// ==========================
 	if chValue < lastValue {
+
 		stateLock.Lock()
 		restartDetected++
 		stateLock.Unlock()
 
 		newAccumulation := currentAccumulation + chValue
+
 		chState.Accumulated[deviceID] = newAccumulation
 		chState.LastValue[deviceID] = chValue
 
-		log.Printf("🔄 [CH] Restart detected → +%.2f mm", chValue)
+		log.Printf("🔄 [CH] Restart detected → %.2f + %.2f = %.2f",
+			currentAccumulation, chValue, newAccumulation)
+
 		return newAccumulation, true
 	}
 
-	// NORMAL NAIK
-	diff := chValue - lastValue
-	newAccumulation := currentAccumulation + diff
+	// ==========================
+	// NORMAL NAIK / SAMA
+	// ==========================
+	// CHA = CH (karena CH sudah kumulatif harian)
 
-	chState.Accumulated[deviceID] = newAccumulation
+	chState.Accumulated[deviceID] = chValue
 	chState.LastValue[deviceID] = chValue
 
-	log.Printf("🌧️ [CH] Normal increase → +%.2f mm", diff)
-	return newAccumulation, false
+	log.Printf("🌧️ [CH] Normal → CHA = %.2f", chValue)
+
+	return chValue, false
 }
 
 // ==========================
@@ -958,4 +970,5 @@ func main() {
 	
 	configWatcher(client)
 }
+
 
