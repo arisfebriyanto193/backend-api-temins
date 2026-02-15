@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
+include '../db/sql.php'; 
 
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/../auth/jwt.php'; // Include JWT helper
