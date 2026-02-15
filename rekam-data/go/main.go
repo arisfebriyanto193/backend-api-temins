@@ -623,7 +623,7 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 	
 	// Handle Curah Hujan (ch) parameter
 	if parameter == "ch" {
-		// Save original ch value (from MQTT)
+		// Save originacl ch value (from MQTT)
 		key := fmt.Sprintf("%s|%s", deviceID, parameter)
 		data[key] = BufferData{
 			DeviceID:   deviceID,
@@ -633,8 +633,8 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 			Timestamp:  formatWIBTimestamp(getWIBTime()),
 		}
 		
-		log.Printf("📥 [BUFFER] Saved CH: Device=%s, Type=%s, Param=%s, Value=%.2f mm (MQTT original)\n", 
-			deviceID, deviceType, parameter, value)
+	//	log.Printf("📥 [BUFFER] Saved CH: Device=%s, Type=%s, Param=%s, Value=%.2f mm (MQTT original)\n", 
+	//		deviceID, deviceType, parameter, value)
 		
 		// Calculate accumulated rainfall (cha)
 		chaValue, restartDetected := processCurahHujan(deviceID, value)
