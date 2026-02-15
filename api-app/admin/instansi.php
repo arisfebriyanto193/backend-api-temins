@@ -56,7 +56,7 @@ function getBearerToken() {
 
 // 1. Cek Auth & Role Admin
 $token = getBearerToken();
-if (!$token) { http_response_code(401); echo json_encode(["status"=>false, "message"=>"Unauthorized"]); exit(); }
+if (!$token) { http_response_code(401); echo json_encode(["status"=>false, "message"=>"Unauthorized cuyy"]); exit(); }
 
 $user = verify_jwt($token);
 // Asumsi di token ada role, atau cek manual ke DB
