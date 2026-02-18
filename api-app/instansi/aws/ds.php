@@ -38,6 +38,9 @@ $instansi_id = $user['uid'];
  * 1. Cari semua User yang punya instansi_id tersebut
  * 2. Ambil semua Device (user_devices) milik user-user tersebut
  */
+
+
+
 $sql = "SELECT ud.device_unique_id, ud.device_name, ud.location, ud.owner_name, u.username as member_name
         FROM user_devices ud
         JOIN users u ON ud.user_id = u.id
@@ -48,6 +51,16 @@ $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $instansi_id);
 $stmt->execute();
 $result = $stmt->get_result();
+
+
+
+
+$sql_user = "SELECT * FROM users WHERE id = ?";
+$stmt_user = $conn->prepare($sql_user);
+$stmt_user->bind_param("i", $instansi_id);
+$stmt_user->execute();
+$result_user = $stmt_user->get_result();
+$user = $result_user->fetch_assoc();
 
 $devices = [];
 while ($row = $result->fetch_assoc()) {
@@ -67,7 +80,7 @@ $details = null;
 if ($selected_id) {
     // Ambil Config Sensor (Sama seperti logika dashboard user biasa)
     $sql_s = "SELECT parameter_name, mqtt_topic, unit, category, display_order 
-              FROM device_settings WHERE device_unique_id = ? AND is_visible = 1";
+              FROM device_settings WHERE device_unique_id = ? AND is_visible = 1 AND category = 'sensor'";
     $stmt_s = $conn->prepare($sql_s);
     $stmt_s->bind_param("s", $selected_id);
     $stmt_s->execute();
@@ -113,7 +126,8 @@ if ($selected_id) {
             "id" => $dev_info['device_unique_id'],
             "lokasi" => $dev_info['location'],
             "zona_waktu" => $dev_info['timezone'] ?? 'WIB',
-            "owner" => $dev_info['owner_name']
+            "owner" => $dev_info['owner_name'],
+            "username" => $user['username']
         ],
         "sensors" => $sensors,
         "charts" => $charts,
