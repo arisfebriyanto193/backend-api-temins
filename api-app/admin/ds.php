@@ -98,7 +98,7 @@ if ($method === 'GET') {
         "SELECT * 
          FROM device_settings 
          WHERE device_unique_id='$did' 
-         AND category='sensor' 
+        --  AND category='sensor' 
          ORDER BY display_order ASC"
     );
 
