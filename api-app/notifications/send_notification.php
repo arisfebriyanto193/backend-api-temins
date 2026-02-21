@@ -21,7 +21,7 @@ if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
 }
 
 $token = $matches[1];
-$payload = decode_jwt($token);
+$payload = verify_jwt($token);
 
 if (!$payload) {
     echo json_encode(["status" => false, "message" => "Token tidak valid atau sudah kadaluarsa"]);
