@@ -136,7 +136,7 @@ switch ($action) {
             $stmt->execute([$name, $username, $password, $id]);
         } else {
             $stmt = $pdo->prepare("UPDATE instansi SET name = ?, username = ? WHERE id = ?");
-            $stmt->execute([$name, $usernusernameame, $id]);
+            $stmt->execute([$name, $username, $id]);
         }
         
         echo json_encode(["status" => true]);
@@ -147,6 +147,41 @@ switch ($action) {
         $stmt->execute([$_GET['id']]);
         echo json_encode(["status" => true]);
         break;
+
+    // --- GENERATE TOKEN UNTUK INSTANSI (Mobile Switch Account) ---
+    case 'get_instansi_token':
+        $instansi_id = $_GET['instansi_id'] ?? null;
+        if (!$instansi_id) {
+            echo json_encode(["status" => false, "message" => "instansi_id diperlukan"]);
+            break;
+        }
+        $s = $pdo->prepare("SELECT id, name, username FROM instansi WHERE id = ?");
+        $s->execute([$instansi_id]);
+        $inst = $s->fetch(PDO::FETCH_ASSOC);
+        if (!$inst) {
+            echo json_encode(["status" => false, "message" => "Instansi tidak ditemukan"]);
+            break;
+        }
+        // Generate JWT token dengan payload instansi
+        $payload = [
+            "id"          => $inst['id'],
+            "uid"         => $inst['id'],
+            "username"    => $inst['username'],
+            "instansi_id" => $inst['id'],
+            "role"        => "instansi",
+            "iat"         => time(),
+            "exp"         => time() + (365 * 24 * 3600), // 1 tahun
+        ];
+        $token_instansi = generate_jwt($payload);
+        echo json_encode([
+            "status"       => true,
+            "token"        => $token_instansi,
+            "instansi_id"  => $inst['id'],
+            "instansi_name"=> $inst['name'],
+            "username"     => $inst['username'],
+        ]);
+        break;
+
 
     // --- CRUD USERS (ANGGOTA) ---
     case 'get_users_by_instansi':
