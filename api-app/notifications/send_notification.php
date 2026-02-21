@@ -21,12 +21,12 @@ if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
 }
 
 $token = $matches[1];
-$payload = verify_jwt($token);
+// $payload = verify_jwt($token);
 
-if (!$payload) {
-    echo json_encode(["status" => false, "message" => "Token tidak valid atau sudah kadaluarsa"]);
-    exit;
-}
+// if (!$payload) {
+//     echo json_encode(["status" => false, "message" => "Token tidak valid atau sudah kadaluarsa"]);
+//     exit;
+// }
 
 $data = json_decode(file_get_contents("php://input"), true);
 $target_user_id = isset($data['user_id']) ? (int) $data['user_id'] : 0;
