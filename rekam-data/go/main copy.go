@@ -18,7 +18,6 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "time/tzdata"
 )
 
 // ==========================
@@ -62,11 +61,6 @@ var (
 	deviceMap         map[string]string
 	subscribedTopics  map[string]bool
 	sensorHeightCache map[string]float64
-	deviceTimezoneCache map[string]*time.Location
-	
-	locWIB  *time.Location
-	locWITA *time.Location
-	locWIT  *time.Location
 	
 	// Counters - atomic operations via stateLock
 	mqttMessageCount     int64
@@ -298,53 +292,63 @@ func getLastCHAFromAPI(deviceID string, date string) float64 {
 }
 
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
-	loc := getDeviceLocation(deviceID)
-	nowLocal := time.Now().In(loc)
-	currentDate := nowLocal.Format("2006-01-02")
+
+	now := getWIBTime()
+	currentDate := formatWIBDate(now)
 
 	chState.Lock()
 	defer chState.Unlock()
 
 	lastDate, dateExists := chState.LastDate[deviceID]
-	lastValue, valExists := chState.LastValue[deviceID]
-	currentAccumulated := chState.Accumulated[deviceID]
 
-	var delta float64
-	isRestart := false
-
-	// Hitung selisih dari pembacaan sebelumnya
-	if !valExists {
-		delta = chValue // Data pertama kali
-	} else if chValue < lastValue {
-		delta = chValue // Terjadi reset fisik pada alat
-		isRestart = true
-	} else {
-		delta = chValue - lastValue // Normal naik/sama
-	}
-
-	// Cek apakah hari lokal sudah berganti
+	// ==========================
+	// HARI BARU → RESET
+	// ==========================
 	if !dateExists || lastDate != currentDate {
-		log.Printf("🌅 [CH] New local day %s detected for %s (TZ: %s) → RESET CHA", currentDate, deviceID, loc.String())
-		currentAccumulated = 0
+
+		log.Printf("🌅 [CH] New day detected for %s → RESET", deviceID)
+
 		chState.LastDate[deviceID] = currentDate
+		chState.LastValue[deviceID] = chValue
+		chState.Accumulated[deviceID] = chValue
+
+		return chValue, false
 	}
 
-	// Akumulasi selalu berbasis selisih (delta) yang positif
-	newAccumulated := currentAccumulated + delta
+	lastValue := chState.LastValue[deviceID]
+	currentAccumulation := chState.Accumulated[deviceID]
 
-	chState.Accumulated[deviceID] = newAccumulated
-	chState.LastValue[deviceID] = chValue
+	// ==========================
+	// RESTART (nilai turun)
+	// ==========================
+	if chValue < lastValue {
 
-	if isRestart {
 		stateLock.Lock()
 		restartDetected++
 		stateLock.Unlock()
-		log.Printf("🔄 [CH] Physical Restart detected for %s → Delta = %.2f, CHA = %.2f", deviceID, delta, newAccumulated)
-	} else if delta > 0 {
-		log.Printf("🌧️ [CH] Rain added for %s -> Delta = %.2f, CHA = %.2f", deviceID, delta, newAccumulated)
+
+		newAccumulation := currentAccumulation + chValue
+
+		chState.Accumulated[deviceID] = newAccumulation
+		chState.LastValue[deviceID] = chValue
+
+		log.Printf("🔄 [CH] Restart detected → %.2f + %.2f = %.2f",
+			currentAccumulation, chValue, newAccumulation)
+
+		return newAccumulation, true
 	}
 
-	return newAccumulated, isRestart
+	// ==========================
+	// NORMAL NAIK / SAMA
+	// ==========================
+	// CHA = CH (karena CH sudah kumulatif harian)
+
+	chState.Accumulated[deviceID] = chValue
+	chState.LastValue[deviceID] = chValue
+
+	log.Printf("🌧️ [CH] Normal → CHA = %.2f", chValue)
+
+	return chValue, false
 }
 
 // ==========================
@@ -477,82 +481,6 @@ func getSensorHeightFromCache(deviceID string) (float64, bool) {
 	defer stateLock.RUnlock()
 	height, exists := sensorHeightCache[deviceID]
 	return height, exists
-}
-
-// ==========================
-// TIMEZONE CACHE FUNCTIONS
-// ==========================
-
-func initLocations() {
-	var err error
-	locWIB, err = time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		log.Printf("⚠️ Failed to load Asia/Jakarta timezone, falling back to FixedZone: %v\n", err)
-		locWIB = time.FixedZone("WIB", 7*3600)
-	}
-	locWITA, err = time.LoadLocation("Asia/Makassar")
-	if err != nil {
-		log.Printf("⚠️ Failed to load Asia/Makassar timezone, falling back to FixedZone: %v\n", err)
-		locWITA = time.FixedZone("WITA", 8*3600)
-	}
-	locWIT, err = time.LoadLocation("Asia/Jayapura")
-	if err != nil {
-		log.Printf("⚠️ Failed to load Asia/Jayapura timezone, falling back to FixedZone: %v\n", err)
-		locWIT = time.FixedZone("WIT", 9*3600)
-	}
-}
-
-func getAllTimezonesFromMySQL() map[string]*time.Location {
-	if mysqlDB == nil {
-		log.Println("❌ [MySQL] Pool not initialized")
-		return make(map[string]*time.Location)
-	}
-	
-	rows, err := mysqlDB.Query("SELECT device_unique_id, timezone FROM user_device WHERE status = 1 AND device_unique_id IS NOT NULL")
-	if err != nil {
-		log.Printf("❌ [MySQL] Query error (Timezone): %v\n", err)
-		return make(map[string]*time.Location)
-	}
-	defer rows.Close()
-	
-	tzMap := make(map[string]*time.Location)
-	count := 0
-	
-	for rows.Next() {
-		var deviceID string
-		var timezone sql.NullString
-		
-		if err := rows.Scan(&deviceID, &timezone); err != nil {
-			continue
-		}
-		
-		loc := locWIB // Default
-		if timezone.Valid {
-			switch strings.ToUpper(timezone.String) {
-			case "WITA":
-				loc = locWITA
-			case "WIT":
-				loc = locWIT
-			}
-		}
-		
-		tzMap[deviceID] = loc
-		count++
-	}
-	
-	log.Printf("✅ [MySQL] Loaded %d device timezones into cache\n", count)
-	return tzMap
-}
-
-func getDeviceLocation(deviceID string) *time.Location {
-	stateLock.RLock()
-	loc, exists := deviceTimezoneCache[deviceID]
-	stateLock.RUnlock()
-	
-	if !exists || loc == nil {
-		return locWIB
-	}
-	return loc
 }
 
 // ==========================
@@ -915,18 +843,15 @@ func autoRefreshSensorCache() {
 		log.Printf("\n🔄 [AUTO-REFRESH #%d] Refreshing cache...\n", iteration)
 		
 		mysqlData := getAllSensorHeightsFromMySQL()
-		tzData := getAllTimezonesFromMySQL()
+		if len(mysqlData) == 0 {
+			continue
+		}
 		
 		stateLock.Lock()
-		if len(mysqlData) > 0 {
-			sensorHeightCache = mysqlData
-		}
-		if len(tzData) > 0 {
-			deviceTimezoneCache = tzData
-		}
+		sensorHeightCache = mysqlData
 		stateLock.Unlock()
 		
-		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (Sensor: %d, Timezone: %d devices)\n\n", iteration, len(mysqlData), len(tzData))
+		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n\n", iteration, len(mysqlData))
 	}
 }
 
@@ -990,16 +915,11 @@ func main() {
 	subscribedTopics = newTopics
 	stateLock.Unlock()
 	
-	// Init Locations
-	initLocations()
-
-	// Load sensor & timezone cache
-	log.Println("🔄 [INIT] Loading sensor and timezone cache...")
+	// Load sensor cache
+	log.Println("🔄 [INIT] Loading sensor cache...")
 	initialData := getAllSensorHeightsFromMySQL()
-	initialTzData := getAllTimezonesFromMySQL()
 	stateLock.Lock()
 	sensorHeightCache = initialData
-	deviceTimezoneCache = initialTzData
 	stateLock.Unlock()
 	
 	// MQTT setup
