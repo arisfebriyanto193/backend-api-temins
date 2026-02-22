@@ -573,7 +573,6 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		deviceType = "Unknown Type"
 	}
 	stateLock.RUnlock()
-	
 	timestamp := formatWIBTimestamp(getWIBTime())
 	
 	// Handle CH parameter
