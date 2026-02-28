@@ -200,8 +200,19 @@ func loadCHState() {
 	chState.LastValue = state.LastValue
 	chState.Accumulated = state.Accumulated
 	chState.LastDate = state.LastDate
-	
-	log.Printf("✅ [CH-STATE] Loaded %d devices from file\n", len(chState.LastValue))
+
+	// Sanitasi: reset accumulated yang tidak wajar (> 1000 mm/hari = anomali lama)
+	const maxReasonableAccumulated = 1000.0
+	resetCount := 0
+	for devID, acc := range chState.Accumulated {
+		if acc > maxReasonableAccumulated {
+			log.Printf("⚠️ [CH-STATE] Corrupt accumulated for %s (%.2f mm) → RESET to 0", devID, acc)
+			chState.Accumulated[devID] = 0
+			resetCount++
+		}
+	}
+
+	log.Printf("✅ [CH-STATE] Loaded %d devices from file (reset %d corrupt values)\n", len(chState.LastValue), resetCount)
 }
 
 // saveCHState saves CH state to file (async, non-blocking)
@@ -314,12 +325,33 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	// Hitung selisih dari pembacaan sebelumnya
 	if !valExists {
-		delta = chValue // Data pertama kali
+		// Pertama kali device terlihat (atau state hilang setelah restart).
+		// Delta = 0 agar tidak langsung menambahkan nilai penuh ke accumulator.
+		// Kita hanya catat lastValue-nya saja, CHA tidak bertambah.
+		delta = 0
+		log.Printf("🆕 [CH] First value for %s → chValue=%.2f, delta=0 (no accumulation on first seen)", deviceID, chValue)
 	} else if chValue < lastValue {
-		delta = chValue // Terjadi reset fisik pada alat
+		// Terjadi reset fisik pada alat (nilai turun)
+		// Gunakan chValue sebagai delta (nilai setelah reset = hujan sejak reset)
+		delta = chValue
 		isRestart = true
 	} else {
-		delta = chValue - lastValue // Normal naik/sama
+		// Normal: naik atau sama
+		delta = chValue - lastValue
+	}
+
+	// Sanity check: delta tidak wajar jika > 50 mm dalam satu interval
+	// (nilai fisik tidak mungkin hujan 50mm dalam 5 menit untuk alat normal)
+	const maxDeltaPerInterval = 50.0
+	if delta > maxDeltaPerInterval {
+		log.Printf("⚠️ [CH] ANOMALY DETECTED for %s: delta=%.2f > %.0f mm threshold. Ignoring delta, only updating lastValue.",
+			deviceID, delta, maxDeltaPerInterval)
+		// Jangan tambahkan delta anomali, hanya update lastValue
+		chState.LastValue[deviceID] = chValue
+		if !dateExists || lastDate != currentDate {
+			chState.LastDate[deviceID] = currentDate
+		}
+		return currentAccumulated, false
 	}
 
 	// Cek apakah hari lokal sudah berganti
@@ -329,7 +361,7 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		chState.LastDate[deviceID] = currentDate
 	}
 
-	// Akumulasi selalu berbasis selisih (delta) yang positif
+	// Akumulasi berbasis selisih (delta) yang valid
 	newAccumulated := currentAccumulated + delta
 
 	chState.Accumulated[deviceID] = newAccumulated
