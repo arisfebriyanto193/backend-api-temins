@@ -324,20 +324,24 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	isRestart := false
 
 	// Hitung selisih dari pembacaan sebelumnya
+	const minDeltaThreshold = 0.01 // abaikan noise floating point < 0.01 mm
+
 	if !valExists {
-		// Pertama kali device terlihat (atau state hilang setelah restart).
-		// Delta = 0 agar tidak langsung menambahkan nilai penuh ke accumulator.
-		// Kita hanya catat lastValue-nya saja, CHA tidak bertambah.
+		// Pertama kali device terlihat (atau state hilang setelah restart program).
+		// Delta = 0: hanya simpan lastValue, CHA tidak langsung bertambah.
 		delta = 0
-		log.Printf("🆕 [CH] First value for %s → chValue=%.2f, delta=0 (no accumulation on first seen)", deviceID, chValue)
-	} else if chValue < lastValue {
-		// Terjadi reset fisik pada alat (nilai turun)
-		// Gunakan chValue sebagai delta (nilai setelah reset = hujan sejak reset)
+		log.Printf("🆕 [CH] First value for %s → chValue=%.4f, delta=0 (no accumulation on first seen)", deviceID, chValue)
+	} else if chValue < lastValue-minDeltaThreshold {
+		// Terjadi reset fisik pada alat (nilai turun signifikan)
+		// delta = nilai baru = hujan yang sudah turun sejak alat restart
 		delta = chValue
 		isRestart = true
 	} else {
-		// Normal: naik atau sama
+		// Normal: naik atau sama (termasuk toleransi floating point)
 		delta = chValue - lastValue
+		if delta < minDeltaThreshold {
+			delta = 0 // bulatkan noise floating point ke nol
+		}
 	}
 
 	// Sanity check: delta tidak wajar jika > 50 mm dalam satu interval
@@ -354,7 +358,8 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		return currentAccumulated, false
 	}
 
-	// Cek apakah hari lokal sudah berganti
+	// Cek apakah hari lokal sudah berganti — reset SEBELUM menambah delta
+	// (sehingga delta dari restart di hari baru masuk ke hari yang benar)
 	if !dateExists || lastDate != currentDate {
 		log.Printf("🌅 [CH] New local day %s detected for %s (TZ: %s) → RESET CHA", currentDate, deviceID, loc.String())
 		currentAccumulated = 0
