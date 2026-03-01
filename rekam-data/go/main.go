@@ -991,7 +991,7 @@ func main() {
 	baseDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	CONFIG_JSON_PATH = filepath.Join(baseDir, "../py/1.json")
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
-	CH_STATE_FILE = filepath.Join(baseDir, "ch_state.json")
+	CH_STATE_FILE = filepath.Join(baseDir, "ch_state2.json")
 	
 	log.Println("\n🚀 TEMINS IoT Logger - Optimized Version")
 	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
