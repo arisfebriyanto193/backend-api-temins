@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -249,10 +250,8 @@ func StartLogServer(port int) {
             stats.forEach(stat => {
                 const box = document.createElement('div');
                 box.className = 'stat-box';
-                box.innerHTML = \`
-                    <div class="stat-label">\${stat.label}</div>
-                    <div class="stat-value">\${stat.noFormat ? stat.value : stat.value.toLocaleString()}</div>
-                \`;
+                box.innerHTML = '<div class="stat-label">' + stat.label + '</div>' +
+                    '<div class="stat-value">' + (stat.noFormat ? stat.value : stat.value.toLocaleString()) + '</div>';
                 statsDiv.appendChild(box);
             });
         }
@@ -261,7 +260,7 @@ func StartLogServer(port int) {
             const entry = document.createElement('div');
             entry.className = 'log-entry log-' + level;
             
-            let content = \`<span class="timestamp">[\${timestamp || new Date().toLocaleString()}]</span> <strong>\${message}</strong>\`;
+            let content = '<span class="timestamp">[' + (timestamp || new Date().toLocaleString()) + ']</span> <strong>' + message + '</strong>';
             
             if (data) {
                 content += '<br><pre style="margin: 5px 0; font-size: 11px;">' + JSON.stringify(data, null, 2) + '</pre>';
