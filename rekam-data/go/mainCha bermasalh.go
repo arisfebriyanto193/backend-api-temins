@@ -18,6 +18,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	_ "time/tzdata"
 )
 
 // ==========================
@@ -29,7 +30,7 @@ const (
 	FLUSH_INTERVAL_MINUTES   = 5
 	CACHE_REFRESH_INTERVAL   = 30 * time.Second
 	WIB_OFFSET               = 7 * time.Hour
-	WEBSOCKET_LOG_PORT       = 8230
+	WEBSOCKET_LOG_PORT       = 8011
 	
 	// PostgreSQL
 	POSTGRES_DSN = "host=127.0.0.1 port=5432 user=postgres password=example dbname=temins sslmode=disable application_name=rekam-data"
@@ -61,6 +62,11 @@ var (
 	deviceMap         map[string]string
 	subscribedTopics  map[string]bool
 	sensorHeightCache map[string]float64
+	deviceTimezoneCache map[string]*time.Location
+	
+	locWIB  *time.Location
+	locWITA *time.Location
+	locWIT  *time.Location
 	
 	// Counters - atomic operations via stateLock
 	mqttMessageCount     int64
@@ -194,8 +200,19 @@ func loadCHState() {
 	chState.LastValue = state.LastValue
 	chState.Accumulated = state.Accumulated
 	chState.LastDate = state.LastDate
-	
-	log.Printf("✅ [CH-STATE] Loaded %d devices from file\n", len(chState.LastValue))
+
+	// Sanitasi: reset accumulated yang tidak wajar (> 1000 mm/hari = anomali lama)
+	const maxReasonableAccumulated = 1000.0
+	resetCount := 0
+	for devID, acc := range chState.Accumulated {
+		if acc > maxReasonableAccumulated {
+			log.Printf("⚠️ [CH-STATE] Corrupt accumulated for %s (%.2f mm) → RESET to 0", devID, acc)
+			chState.Accumulated[devID] = 0
+			resetCount++
+		}
+	}
+
+	log.Printf("✅ [CH-STATE] Loaded %d devices from file (reset %d corrupt values)\n", len(chState.LastValue), resetCount)
 }
 
 // saveCHState saves CH state to file (async, non-blocking)
@@ -292,51 +309,79 @@ func getLastCHAFromAPI(deviceID string, date string) float64 {
 }
 
 func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
-	now := getWIBTime()
-	currentDate := formatWIBDate(now)
+	loc := getDeviceLocation(deviceID)
+	nowLocal := time.Now().In(loc)
+	currentDate := nowLocal.Format("2006-01-02")
 
 	chState.Lock()
 	defer chState.Unlock()
 
 	lastDate, dateExists := chState.LastDate[deviceID]
+	lastValue, valExists := chState.LastValue[deviceID]
+	currentAccumulated := chState.Accumulated[deviceID]
 
-	// HARI BARU → RESET
-	if !dateExists || lastDate != currentDate {
-		log.Printf("🌅 [CH] New day detected for %s → RESET", deviceID)
-		
-		chState.LastDate[deviceID] = currentDate
-		chState.LastValue[deviceID] = chValue
-		chState.Accumulated[deviceID] = chValue
-		
-		return chValue, false
+	var delta float64
+	isRestart := false
+
+	// Hitung selisih dari pembacaan sebelumnya
+	const minDeltaThreshold = 0.01 // abaikan noise floating point < 0.01 mm
+
+	if !valExists {
+		// Pertama kali device terlihat (atau state hilang setelah restart program).
+		// Delta = 0: hanya simpan lastValue, CHA tidak langsung bertambah.
+		delta = 0
+		log.Printf("🆕 [CH] First value for %s → chValue=%.4f, delta=0 (no accumulation on first seen)", deviceID, chValue)
+	} else if chValue < lastValue-minDeltaThreshold {
+		// Terjadi reset fisik pada alat (nilai turun signifikan)
+		// delta = nilai baru = hujan yang sudah turun sejak alat restart
+		delta = chValue
+		isRestart = true
+	} else {
+		// Normal: naik atau sama (termasuk toleransi floating point)
+		delta = chValue - lastValue
+		if delta < minDeltaThreshold {
+			delta = 0 // bulatkan noise floating point ke nol
+		}
 	}
 
-	lastValue := chState.LastValue[deviceID]
-	currentAccumulation := chState.Accumulated[deviceID]
+	// Sanity check: delta tidak wajar jika > 50 mm dalam satu interval
+	// (nilai fisik tidak mungkin hujan 50mm dalam 5 menit untuk alat normal)
+	const maxDeltaPerInterval = 50.0
+	if delta > maxDeltaPerInterval {
+		log.Printf("⚠️ [CH] ANOMALY DETECTED for %s: delta=%.2f > %.0f mm threshold. Ignoring delta, only updating lastValue.",
+			deviceID, delta, maxDeltaPerInterval)
+		// Jangan tambahkan delta anomali, hanya update lastValue
+		chState.LastValue[deviceID] = chValue
+		if !dateExists || lastDate != currentDate {
+			chState.LastDate[deviceID] = currentDate
+		}
+		return currentAccumulated, false
+	}
 
-	// RESTART (nilai turun)
-	if chValue < lastValue {
+	// Cek apakah hari lokal sudah berganti — reset SEBELUM menambah delta
+	// (sehingga delta dari restart di hari baru masuk ke hari yang benar)
+	if !dateExists || lastDate != currentDate {
+		log.Printf("🌅 [CH] New local day %s detected for %s (TZ: %s) → RESET CHA", currentDate, deviceID, loc.String())
+		currentAccumulated = 0
+		chState.LastDate[deviceID] = currentDate
+	}
+
+	// Akumulasi berbasis selisih (delta) yang valid
+	newAccumulated := currentAccumulated + delta
+
+	chState.Accumulated[deviceID] = newAccumulated
+	chState.LastValue[deviceID] = chValue
+
+	if isRestart {
 		stateLock.Lock()
 		restartDetected++
 		stateLock.Unlock()
-
-		newAccumulation := currentAccumulation + chValue
-		chState.Accumulated[deviceID] = newAccumulation
-		chState.LastValue[deviceID] = chValue
-
-		log.Printf("🔄 [CH] Restart detected → +%.2f mm", chValue)
-		return newAccumulation, true
+		log.Printf("🔄 [CH] Physical Restart detected for %s → Delta = %.2f, CHA = %.2f", deviceID, delta, newAccumulated)
+	} else if delta > 0 {
+		log.Printf("🌧️ [CH] Rain added for %s -> Delta = %.2f, CHA = %.2f", deviceID, delta, newAccumulated)
 	}
 
-	// NORMAL NAIK
-	diff := chValue - lastValue
-	newAccumulation := currentAccumulation + diff
-
-	chState.Accumulated[deviceID] = newAccumulation
-	chState.LastValue[deviceID] = chValue
-
-	log.Printf("🌧️ [CH] Normal increase → +%.2f mm", diff)
-	return newAccumulation, false
+	return newAccumulated, isRestart
 }
 
 // ==========================
@@ -472,6 +517,82 @@ func getSensorHeightFromCache(deviceID string) (float64, bool) {
 }
 
 // ==========================
+// TIMEZONE CACHE FUNCTIONS
+// ==========================
+
+func initLocations() {
+	var err error
+	locWIB, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Printf("⚠️ Failed to load Asia/Jakarta timezone, falling back to FixedZone: %v\n", err)
+		locWIB = time.FixedZone("WIB", 7*3600)
+	}
+	locWITA, err = time.LoadLocation("Asia/Makassar")
+	if err != nil {
+		log.Printf("⚠️ Failed to load Asia/Makassar timezone, falling back to FixedZone: %v\n", err)
+		locWITA = time.FixedZone("WITA", 8*3600)
+	}
+	locWIT, err = time.LoadLocation("Asia/Jayapura")
+	if err != nil {
+		log.Printf("⚠️ Failed to load Asia/Jayapura timezone, falling back to FixedZone: %v\n", err)
+		locWIT = time.FixedZone("WIT", 9*3600)
+	}
+}
+
+func getAllTimezonesFromMySQL() map[string]*time.Location {
+	if mysqlDB == nil {
+		log.Println("❌ [MySQL] Pool not initialized")
+		return make(map[string]*time.Location)
+	}
+	
+	rows, err := mysqlDB.Query("SELECT device_unique_id, timezone FROM user_device WHERE status = 1 AND device_unique_id IS NOT NULL")
+	if err != nil {
+		log.Printf("❌ [MySQL] Query error (Timezone): %v\n", err)
+		return make(map[string]*time.Location)
+	}
+	defer rows.Close()
+	
+	tzMap := make(map[string]*time.Location)
+	count := 0
+	
+	for rows.Next() {
+		var deviceID string
+		var timezone sql.NullString
+		
+		if err := rows.Scan(&deviceID, &timezone); err != nil {
+			continue
+		}
+		
+		loc := locWIB // Default
+		if timezone.Valid {
+			switch strings.ToUpper(timezone.String) {
+			case "WITA":
+				loc = locWITA
+			case "WIT":
+				loc = locWIT
+			}
+		}
+		
+		tzMap[deviceID] = loc
+		count++
+	}
+	
+	log.Printf("✅ [MySQL] Loaded %d device timezones into cache\n", count)
+	return tzMap
+}
+
+func getDeviceLocation(deviceID string) *time.Location {
+	stateLock.RLock()
+	loc, exists := deviceTimezoneCache[deviceID]
+	stateLock.RUnlock()
+	
+	if !exists || loc == nil {
+		return locWIB
+	}
+	return loc
+}
+
+// ==========================
 // BUFFER FILE HANDLER
 // ==========================
 
@@ -489,7 +610,6 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		deviceType = "Unknown Type"
 	}
 	stateLock.RUnlock()
-	
 	timestamp := formatWIBTimestamp(getWIBTime())
 	
 	// Handle CH parameter
@@ -831,15 +951,18 @@ func autoRefreshSensorCache() {
 		log.Printf("\n🔄 [AUTO-REFRESH #%d] Refreshing cache...\n", iteration)
 		
 		mysqlData := getAllSensorHeightsFromMySQL()
-		if len(mysqlData) == 0 {
-			continue
-		}
+		tzData := getAllTimezonesFromMySQL()
 		
 		stateLock.Lock()
-		sensorHeightCache = mysqlData
+		if len(mysqlData) > 0 {
+			sensorHeightCache = mysqlData
+		}
+		if len(tzData) > 0 {
+			deviceTimezoneCache = tzData
+		}
 		stateLock.Unlock()
 		
-		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (%d devices)\n\n", iteration, len(mysqlData))
+		log.Printf("✓ [AUTO-REFRESH #%d] Cache updated (Sensor: %d, Timezone: %d devices)\n\n", iteration, len(mysqlData), len(tzData))
 	}
 }
 
@@ -873,7 +996,7 @@ func main() {
 	baseDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	CONFIG_JSON_PATH = filepath.Join(baseDir, "../py/1.json")
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
-	CH_STATE_FILE = filepath.Join(baseDir, "ch_state.json")
+	CH_STATE_FILE = filepath.Join(baseDir, "ch_state2.json")
 	
 	log.Println("\n🚀 TEMINS IoT Logger - Optimized Version")
 	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
@@ -903,11 +1026,16 @@ func main() {
 	subscribedTopics = newTopics
 	stateLock.Unlock()
 	
-	// Load sensor cache
-	log.Println("🔄 [INIT] Loading sensor cache...")
+	// Init Locations
+	initLocations()
+
+	// Load sensor & timezone cache
+	log.Println("🔄 [INIT] Loading sensor and timezone cache...")
 	initialData := getAllSensorHeightsFromMySQL()
+	initialTzData := getAllTimezonesFromMySQL()
 	stateLock.Lock()
 	sensorHeightCache = initialData
+	deviceTimezoneCache = initialTzData
 	stateLock.Unlock()
 	
 	// MQTT setup
@@ -932,7 +1060,7 @@ func main() {
 	go autoRefreshSensorCache()
 	go statusMonitor()
 	go autoSaveCHState()
-	go StartLogServer(WEBSOCKET_LOG_PORT)
+	// go StartLogServer(WEBSOCKET_LOG_PORT)
 	
 	time.Sleep(1 * time.Second)
 	
@@ -958,3 +1086,5 @@ func main() {
 	
 	configWatcher(client)
 }
+
+
