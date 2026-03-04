@@ -176,6 +176,22 @@ if ($method === 'GET') {
     }
 
     // ================================
+    // Ambil data automasi
+    // ================================
+    $automations = [];
+    $q_auto = mysqli_query($conn, "SELECT id, parameter_name, operator, threshold, send_email, send_notification FROM device_automations WHERE device_unique_id = '$did' ORDER BY id ASC");
+    while($auto = mysqli_fetch_assoc($q_auto)) {
+        $automations[] = [
+            'id' => $auto['id'],
+            'parameter_name' => $auto['parameter_name'],
+            'operator' => $auto['operator'],
+            'threshold' => (float)$auto['threshold'],
+            'send_email' => (bool)$auto['send_email'],
+            'send_notification' => (bool)$auto['send_notification']
+        ];
+    }
+
+    // ================================
     // Jika device AWLR → ambil config tambahan
     // ================================
     if ($device_type === 'awlr' ||$device_type === 'AWLR') {
@@ -208,6 +224,7 @@ if ($method === 'GET') {
             "kota"            => $kota,
             "statusAlat"      => $statusAlat,
             "settings"        => $settings,
+            "automations"     => $automations,
             "awlr_height"     => $awlr_height,
             "awlrData"        => $data_config['parameter_name'] ?? null,
             "awlrStatusData"  => $data_config['unit'] ?? null,
@@ -227,8 +244,7 @@ if ($method === 'GET') {
         "kota"           => $kota,
         "statusAlat"   => $statusAlat,
         "settings"     => $settings,
-        "statusAlat"   => $statusAlat,
-        "settings"     => $settings,
+        "automations"  => $automations,
         "awlr_height"  => $awlr_height,
         ...($extended_data ?? [])
     ]);
@@ -353,6 +369,20 @@ if ($method === 'POST') {
                     $conn->query("INSERT INTO user_sensor_charts (user_id, device_unique_id, device_setting_id, chart_order, is_active, data) 
                                   VALUES ('$new_uid', '$dev_id', '$sid', '$order', 1, '$d_key')");
                 }
+            }
+        }
+
+        // Insert Automations
+        if(isset($input['automations']) && is_array($input['automations'])){
+            foreach($input['automations'] as $auto){
+                $param_name = mysqli_real_escape_string($conn, $auto['parameter_name']);
+                $operator = mysqli_real_escape_string($conn, $auto['operator']);
+                $threshold = (float)$auto['threshold'];
+                $send_email = !empty($auto['send_email']) ? 1 : 0;
+                $send_notification = !empty($auto['send_notification']) ? 1 : 0;
+                
+                $conn->query("INSERT INTO device_automations (device_unique_id, parameter_name, operator, threshold, send_email, send_notification) 
+                              VALUES ('$dev_id', '$param_name', '$operator', $threshold, $send_email, $send_notification)");
             }
         }
 
@@ -588,6 +618,27 @@ if (
         }
     }
 
+    /* =========================
+       UPDATE AUTOMATIONS
+       ========================= */
+    $conn->query("
+        DELETE FROM device_automations 
+        WHERE device_unique_id = '$dev_id'
+    ");
+
+    if (isset($input['automations']) && is_array($input['automations'])) {
+        foreach ($input['automations'] as $auto) {
+            $param_name = mysqli_real_escape_string($conn, $auto['parameter_name']);
+            $operator = mysqli_real_escape_string($conn, $auto['operator']);
+            $threshold = (float)$auto['threshold'];
+            $send_email = !empty($auto['send_email']) ? 1 : 0;
+            $send_notification = !empty($auto['send_notification']) ? 1 : 0;
+            
+            $conn->query("INSERT INTO device_automations (device_unique_id, parameter_name, operator, threshold, send_email, send_notification) 
+                          VALUES ('$dev_id', '$param_name', '$operator', $threshold, $send_email, $send_notification)");
+        }
+    }
+
     echo json_encode([
         "status"  => true,
         "message" => "Konfigurasi device berhasil diupdate",
@@ -623,6 +674,7 @@ if (
         $conn->query("DELETE FROM user_sensor_charts WHERE device_unique_id='$did'");
         $conn->query("DELETE FROM sensor_logs WHERE device_unique_id='$did'");
         $conn->query("DELETE FROM device_settings WHERE device_unique_id='$did'");
+        $conn->query("DELETE FROM device_automations WHERE device_unique_id='$did'");
         $conn->query("DELETE FROM user_devices WHERE user_id='$uid'");
         $conn->query("DELETE FROM users WHERE id='$uid'");
         
