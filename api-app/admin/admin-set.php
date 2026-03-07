@@ -73,58 +73,81 @@ $action = $_GET['action'] ?? null;
 */
 if ($action === 'admin-users') {
 
-// ---------- PUT CHANGE PASSWORD ----------
+// ---------- PUT: CHANGE PASSWORD  |  EDIT PROFILE ----------
 if ($method === 'PUT') {
     $input = json_decode(file_get_contents("php://input"), true);
+    $type  = $input['type'] ?? '';
 
-    if (
-        empty($input['id']) ||
-        empty($input['password']) ||
-        ($input['type'] ?? '') !== 'change_password'
-    ) {
+    if (empty($input['id'])) {
         http_response_code(400);
-        echo json_encode([
-            "status" => false,
-            "message" => "Data tidak lengkap"
-        ]);
+        echo json_encode(["status" => false, "message" => "ID wajib diisi"]);
         exit();
     }
 
     $id = (int) $input['id'];
-    $password = password_hash($input['password'], PASSWORD_BCRYPT);
 
     // Pastikan admin ada
     $cek = mysqli_query($conn, "SELECT id FROM users WHERE id=$id AND role='admin'");
     if (mysqli_num_rows($cek) === 0) {
         http_response_code(404);
-        echo json_encode([
-            "status" => false,
-            "message" => "Admin tidak ditemukan"
-        ]);
+        echo json_encode(["status" => false, "message" => "Admin tidak ditemukan"]);
         exit();
     }
 
-    // Update password
-    $sql = "UPDATE users SET password='$password' WHERE id=$id";
-
-    if (mysqli_query($conn, $sql)) {
-        echo json_encode([
-            "status" => true,
-            "message" => "Password admin berhasil diubah"
-        ]);
-    } else {
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal mengubah password"
-        ]);
+    // ---- Ganti Password ----
+    if ($type === 'change_password') {
+        if (empty($input['password'])) {
+            http_response_code(400);
+            echo json_encode(["status" => false, "message" => "Password baru wajib diisi"]);
+            exit();
+        }
+        $password = password_hash($input['password'], PASSWORD_BCRYPT);
+        if (mysqli_query($conn, "UPDATE users SET password='$password' WHERE id=$id")) {
+            echo json_encode(["status" => true, "message" => "Password admin berhasil diubah"]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["status" => false, "message" => "Gagal mengubah password"]);
+        }
+        exit();
     }
+
+    // ---- Edit Username & Email ----
+    if ($type === 'edit_profile') {
+        if (empty($input['username'])) {
+            http_response_code(400);
+            echo json_encode(["status" => false, "message" => "Username wajib diisi"]);
+            exit();
+        }
+
+        $username = mysqli_real_escape_string($conn, $input['username']);
+        $email    = isset($input['email']) ? mysqli_real_escape_string($conn, $input['email']) : '';
+
+        // Cek username sudah dipakai admin lain
+        $cekUser = mysqli_query($conn, "SELECT id FROM users WHERE username='$username' AND id != $id");
+        if (mysqli_num_rows($cekUser) > 0) {
+            http_response_code(409);
+            echo json_encode(["status" => false, "message" => "Username sudah digunakan"]);
+            exit();
+        }
+
+        $sql = "UPDATE users SET username='$username', email='$email' WHERE id=$id";
+        if (mysqli_query($conn, $sql)) {
+            echo json_encode(["status" => true, "message" => "Profil admin berhasil diperbarui"]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["status" => false, "message" => "Gagal memperbarui profil"]);
+        }
+        exit();
+    }
+
+    http_response_code(400);
+    echo json_encode(["status" => false, "message" => "Tipe aksi tidak dikenal"]);
     exit();
 }
 
     // ---------- GET ADMIN USERS ----------
     if ($method === 'GET') {
-        $res = mysqli_query($conn, "SELECT id, username, role, diBuat FROM users WHERE role='admin'");
+        $res = mysqli_query($conn, "SELECT id, username, email, role, diBuat FROM users WHERE role='admin'");
         $data = [];
         while ($row = mysqli_fetch_assoc($res)) {
             $data[] = $row;
@@ -149,6 +172,7 @@ if ($method === 'PUT') {
 
         $username = mysqli_real_escape_string($conn, $input['username']);
         $password = password_hash($input['password'], PASSWORD_BCRYPT);
+        $email    = isset($input['email']) ? mysqli_real_escape_string($conn, $input['email']) : '';
 
         $cek = mysqli_query($conn, "SELECT id FROM users WHERE username='$username'");
         if (mysqli_num_rows($cek) > 0) {
@@ -157,8 +181,8 @@ if ($method === 'PUT') {
             exit();
         }
 
-        $sql = "INSERT INTO users (username,password,role,diBuat)
-                VALUES ('$username','$password','admin',NOW())";
+        $sql = "INSERT INTO users (username, password, role, email, diBuat)
+                VALUES ('$username', '$password', 'admin', '$email', NOW())";
 
         if (mysqli_query($conn, $sql)) {
             echo json_encode(["status"=>true,"message"=>"Admin berhasil ditambahkan"]);
