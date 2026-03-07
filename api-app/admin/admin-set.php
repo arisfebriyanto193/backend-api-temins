@@ -255,114 +255,362 @@ if ($method === 'DELETE') {
 
 /*
 |--------------------------------------------------------------------------
-| ACTION: app-config
+| ACTION: app-config  (DB-based — tabel app_configs)
 |--------------------------------------------------------------------------
 */
 if ($action === 'app-config') {
 
-    if (!file_exists($FILE_JSON)) {
-        http_response_code(404);
-        echo json_encode(["status"=>false,"message"=>"File app.json tidak ditemukan"]);
-        exit();
-    }
-
     // ---------- GET CONFIG ----------
     if ($method === 'GET') {
-        $json = json_decode(file_get_contents($FILE_JSON), true);
-        echo json_encode([
-            "status" => true,
-            "data" => $json
-        ]);
+        $res = mysqli_query($conn, "SELECT status, versi, url FROM app_configs ORDER BY id ASC LIMIT 1");
+        if (!$res || mysqli_num_rows($res) === 0) {
+            http_response_code(404);
+            echo json_encode(["status" => false, "message" => "Konfigurasi belum tersedia di database"]);
+            exit();
+        }
+        $row = mysqli_fetch_assoc($res);
+        echo json_encode(["status" => true, "data" => $row]);
         exit();
     }
 
     // ---------- POST UPDATE CONFIG ----------
-if ($method === 'POST') {
-    $input = json_decode(file_get_contents("php://input"), true);
-    if ($input === null) {
-        http_response_code(400);
-        echo json_encode([
-            "status" => false,
-            "message" => "JSON body tidak valid"
-        ]);
+    if ($method === 'POST') {
+        $input = json_decode(file_get_contents("php://input"), true);
+        if ($input === null) {
+            http_response_code(400);
+            echo json_encode(["status" => false, "message" => "JSON body tidak valid"]);
+            exit();
+        }
+
+        $status = isset($input['status']) ? (int)$input['status'] : null;
+        $versi  = isset($input['versi'])  ? mysqli_real_escape_string($conn, trim($input['versi']))  : null;
+        $url    = isset($input['url'])    ? mysqli_real_escape_string($conn, trim($input['url']))    : null;
+
+        if ($status === null || $versi === null || $url === null) {
+            http_response_code(400);
+            echo json_encode(["status" => false, "message" => "Field status, versi, dan url wajib diisi"]);
+            exit();
+        }
+
+        // Cek apakah baris config sudah ada
+        $cek = mysqli_query($conn, "SELECT id FROM app_configs LIMIT 1");
+        if (mysqli_num_rows($cek) === 0) {
+            // Insert pertama kali
+            $sql = "INSERT INTO app_configs (status, versi, url) VALUES ($status, '$versi', '$url')";
+        } else {
+            $row = mysqli_fetch_assoc($cek);
+            $id  = (int) $row['id'];
+            $sql = "UPDATE app_configs SET status=$status, versi='$versi', url='$url' WHERE id=$id";
+        }
+
+        if (mysqli_query($conn, $sql)) {
+            echo json_encode([
+                "status"  => true,
+                "message" => "Konfigurasi berhasil diperbarui",
+                "data"    => ["status" => $status, "versi" => $versi, "url" => $url]
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["status" => false, "message" => "Gagal menyimpan konfigurasi"]);
+        }
         exit();
     }
-
-    // Cek file ada
-    if (!file_exists($FILE_JSON)) {
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "File config tidak ditemukan",
-            "error" => $FILE_JSON
-        ]);
-        exit();
-    }
-
-    // Cek permission
-    if (!is_writable($FILE_JSON)) {
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "File config tidak memiliki izin tulis (permission denied)"
-        ]);
-        exit();
-    }
-
-    $old = json_decode(file_get_contents($FILE_JSON), true);
-    if ($old === null && json_last_error() !== JSON_ERROR_NONE) {
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "File config berisi JSON tidak valid",
-            "error" => json_last_error_msg()
-        ]);
-        exit();
-    }
-
-    $new = array_merge($old, $input);
-
-    $json = json_encode(
-        $new,
-        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
-    );
-
-    if ($json === false) {
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal encode JSON",
-            "error" => json_last_error_msg()
-        ]);
-        exit();
-    }
-
-    $save = file_put_contents($FILE_JSON, $json, LOCK_EX);
-
-    if ($save === false) {
-        $error = error_get_last();
-        http_response_code(500);
-        echo json_encode([
-            "status" => false,
-            "message" => "Gagal menyimpan config",
-            "error" => $error['message'] ?? 'Unknown error'
-        ]);
-        exit();
-    }
-
-    echo json_encode([
-        "status" => true,
-        "message" => "Config berhasil diperbarui",
-        "data" => $new
-    ]);
-    exit();
 }
 
+/*
+|--------------------------------------------------------------------------
+| ACTION: push-users  (Daftar user yang punya push token aktif)
+|--------------------------------------------------------------------------
+*/
+if ($action === 'push-users') {
+    if ($method === 'GET') {
+        $sql = "
+            SELECT u.id AS user_id, u.username, COUNT(upt.id) AS device_count
+            FROM users u
+            INNER JOIN user_push_tokens upt ON upt.user_id = u.id
+            GROUP BY u.id, u.username
+            ORDER BY u.username ASC
+        ";
+        $res  = mysqli_query($conn, $sql);
+        $data = [];
+        while ($row = mysqli_fetch_assoc($res)) {
+            $data[] = [
+                "user_id"      => (int)$row['user_id'],
+                "username"     => $row['username'],
+                "device_count" => (int)$row['device_count'],
+            ];
+        }
+        echo json_encode(["status" => true, "data" => $data]);
+        exit();
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| ACTION: send-notif  (Kirim push notifikasi manual ke user tertentu)
+|--------------------------------------------------------------------------
+*/
+if ($action === 'send-notif') {
+    if ($method === 'POST') {
+        $input   = json_decode(file_get_contents("php://input"), true);
+        $title   = isset($input['title'])   ? trim($input['title'])   : '';
+        $message = isset($input['message']) ? trim($input['message']) : '';
+        $userIds = $input['user_ids'] ?? [];   // array int[] atau string 'all'
+
+        if (empty($title) || empty($message)) {
+            http_response_code(400);
+            echo json_encode(["status" => false, "message" => "title dan message wajib diisi"]);
+            exit();
+        }
+
+        // Ambil user_ids yang valid
+        if ($userIds === 'all' || (is_array($userIds) && count($userIds) === 0)) {
+            // Semua user yang punya token
+            $res     = mysqli_query($conn, "SELECT DISTINCT user_id FROM user_push_tokens");
+            $targets = [];
+            while ($r = mysqli_fetch_assoc($res)) {
+                $targets[] = (int)$r['user_id'];
+            }
+        } else {
+            $targets = array_map('intval', (array)$userIds);
+        }
+
+        if (empty($targets)) {
+            echo json_encode(["status" => false, "message" => "Tidak ada user dengan push token terdaftar"]);
+            exit();
+        }
+
+        $results = [];
+
+        foreach ($targets as $uid) {
+            $payload = json_encode([
+                "user_id" => $uid,
+                "title"   => $title,
+                "message" => $message,
+                "data"    => [
+                    "screen" => "detail",
+                    "id"     => $uid,
+                    "status" => "manual"
+                ]
+            ]);
+
+            $ch = curl_init("https://be-data.dash.temins.id/send/notif");
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                "Content-Type: application/json",
+                "Accept: application/json"
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+            $resp     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            $results[] = [
+                "user_id"    => $uid,
+                "http_code"  => $httpCode,
+                "ok"         => ($httpCode >= 200 && $httpCode < 300 && !$curlErr),
+                "response"   => $resp ? json_decode($resp, true) : null,
+                "curl_error" => $curlErr ?: null,
+            ];
+        }
+
+        $successCount = count(array_filter($results, fn($r) => $r['ok']));
+        echo json_encode([
+            "status"  => true,
+            "message" => "Notifikasi dikirim ke $successCount/" . count($targets) . " user",
+            "results" => $results
+        ]);
+        exit();
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| ACTION: email-config  (Baca/simpan/test email SMTP dari tabel email_configs)
+|--------------------------------------------------------------------------
+*/
+if ($action === 'email-config') {
+
+    // ---------- GET: Baca config email ----------
+    if ($method === 'GET') {
+        $res = mysqli_query($conn, "SELECT id, email, app_pass FROM email_configs ORDER BY id ASC LIMIT 1");
+        if (!$res || mysqli_num_rows($res) === 0) {
+            echo json_encode(["status" => true, "data" => ["email" => "", "app_pass" => ""]]);
+            exit();
+        }
+        $row = mysqli_fetch_assoc($res);
+        // Sembunyikan sebagian app_pass untuk keamanan (tampilkan 4 char pertama + ***)
+        $masked = strlen($row['app_pass']) > 4
+            ? substr($row['app_pass'], 0, 4) . str_repeat('*', strlen($row['app_pass']) - 4)
+            : str_repeat('*', strlen($row['app_pass']));
+        echo json_encode([
+            "status" => true,
+            "data"   => [
+                "id"           => (int)$row['id'],
+                "email"        => $row['email'],
+                "app_pass"     => $row['app_pass'],  // full value untuk form
+                "app_pass_masked" => $masked
+            ]
+        ]);
+        exit();
+    }
+
+    // ---------- POST: Update atau Test ----------
+    if ($method === 'POST') {
+        $input = json_decode(file_get_contents("php://input"), true);
+        $type  = $input['type'] ?? 'update';
+
+        // ---- Update config ----
+        if ($type === 'update') {
+            $email    = isset($input['email'])    ? mysqli_real_escape_string($conn, trim($input['email']))    : '';
+            $app_pass = isset($input['app_pass']) ? mysqli_real_escape_string($conn, trim($input['app_pass'])) : '';
+
+            if (empty($email) || empty($app_pass)) {
+                http_response_code(400);
+                echo json_encode(["status" => false, "message" => "Email dan app password wajib diisi"]);
+                exit();
+            }
+
+            $cek = mysqli_query($conn, "SELECT id FROM email_configs LIMIT 1");
+            if (mysqli_num_rows($cek) === 0) {
+                $sql = "INSERT INTO email_configs (email, app_pass) VALUES ('$email', '$app_pass')";
+            } else {
+                $row = mysqli_fetch_assoc($cek);
+                $id  = (int)$row['id'];
+                $sql = "UPDATE email_configs SET email='$email', app_pass='$app_pass' WHERE id=$id";
+            }
+
+            if (mysqli_query($conn, $sql)) {
+                echo json_encode(["status" => true, "message" => "Konfigurasi email berhasil disimpan"]);
+            } else {
+                http_response_code(500);
+                echo json_encode(["status" => false, "message" => "Gagal menyimpan konfigurasi email"]);
+            }
+            exit();
+        }
+
+        // ---- Test kirim email ----
+        if ($type === 'test') {
+            $to = isset($input['to']) ? trim($input['to']) : '';
+            if (empty($to)) {
+                http_response_code(400);
+                echo json_encode(["status" => false, "message" => "Email tujuan wajib diisi"]);
+                exit();
+            }
+
+            // Ambil kredensial dari DB
+            $res = mysqli_query($conn, "SELECT email, app_pass FROM email_configs LIMIT 1");
+            if (!$res || mysqli_num_rows($res) === 0) {
+                http_response_code(400);
+                echo json_encode(["status" => false, "message" => "Konfigurasi email belum diatur"]);
+                exit();
+            }
+            $cfg      = mysqli_fetch_assoc($res);
+            $smtpUser = $cfg['email'];
+            $smtpPass = $cfg['app_pass'];
+            $smtpHost = 'smtp.gmail.com';
+            $smtpPort = 587;
+
+            // Kirim menggunakan raw SMTP (PHP native, tanpa library)
+            $subject  = "[TEST] Email dari Temins IoT Admin";
+            $bodyHtml = "
+<html><body style='font-family:sans-serif;padding:20px'>
+<h2 style='color:#4f46e5'>✅ Test Email Berhasil</h2>
+<p>Email ini dikirim dari sistem admin Temins IoT sebagai uji coba konfigurasi SMTP.</p>
+<p><strong>Waktu:</strong> " . date('d M Y H:i:s') . "</p>
+<p><strong>From:</strong> $smtpUser</p>
+<hr><p style='color:#888;font-size:12px'>Jangan balas email ini.</p>
+</body></html>";
+
+            // Kirim via cURL ke SMTP (atau gunakan PHP mail dengan stream)
+            // Gunakan socket SMTP manual agar tidak perlu library
+            $ok      = false;
+            $errMsg  = '';
+
+            try {
+                $socket = fsockopen('tls://' . $smtpHost, $smtpPort, $errno, $errstr, 30);
+                if (!$socket) {
+                    throw new Exception("Tidak bisa membuka koneksi SMTP: $errstr ($errno)");
+                }
+
+                $read = fgets($socket, 515); // 220 greeting
+
+                // EHLO
+                fputs($socket, "EHLO temins.local\r\n");
+                while ($line = fgets($socket, 515)) {
+                    if (substr($line, 3, 1) === ' ') break;
+                }
+
+                // AUTH LOGIN
+                fputs($socket, "AUTH LOGIN\r\n");
+                fgets($socket, 515); // 334
+
+                fputs($socket, base64_encode($smtpUser) . "\r\n");
+                fgets($socket, 515); // 334
+
+                fputs($socket, base64_encode($smtpPass) . "\r\n");
+                $authResp = fgets($socket, 515);
+                if (strpos($authResp, '235') === false) {
+                    throw new Exception("Autentikasi gagal: $authResp");
+                }
+
+                // MAIL FROM
+                fputs($socket, "MAIL FROM: <$smtpUser>\r\n");
+                fgets($socket, 515);
+
+                // RCPT TO
+                fputs($socket, "RCPT TO: <$to>\r\n");
+                fgets($socket, 515);
+
+                // DATA
+                fputs($socket, "DATA\r\n");
+                fgets($socket, 515);
+
+                $headers  = "From: Temins IoT <$smtpUser>\r\n";
+                $headers .= "To: $to\r\n";
+                $headers .= "Subject: $subject\r\n";
+                $headers .= "MIME-Version: 1.0\r\n";
+                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                $headers .= "\r\n";
+
+                fputs($socket, $headers . $bodyHtml . "\r\n.\r\n");
+                $dataResp = fgets($socket, 515);
+
+                fputs($socket, "QUIT\r\n");
+                fclose($socket);
+
+                if (strpos($dataResp, '250') !== false) {
+                    $ok = true;
+                } else {
+                    $errMsg = "Server menolak pesan: $dataResp";
+                }
+            } catch (Exception $e) {
+                $errMsg = $e->getMessage();
+            }
+
+            if ($ok) {
+                echo json_encode(["status" => true, "message" => "Test email berhasil dikirim ke $to"]);
+            } else {
+                http_response_code(500);
+                echo json_encode(["status" => false, "message" => "Gagal kirim email: $errMsg"]);
+            }
+            exit();
+        }
+
+        http_response_code(400);
+        echo json_encode(["status" => false, "message" => "Tipe aksi tidak dikenal"]);
+        exit();
+    }
 }
 
 // ================== FALLBACK ==================
 http_response_code(404);
 echo json_encode([
-    "status" => false,
+    "status"  => false,
     "message" => "Endpoint tidak ditemukan"
 ]);
+
