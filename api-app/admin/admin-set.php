@@ -394,27 +394,38 @@ if ($action === 'send-notif') {
                 ]
             ]);
 
-            $ch = curl_init("https://be-data.dash.temins.id/send/notif");
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                "Content-Type: application/json",
-                "Accept: application/json"
+            // Kirim via file_get_contents (tidak butuh curl extension)
+            $ctx = stream_context_create([
+                'http' => [
+                    'method'  => 'POST',
+                    'header'  => "Content-Type: application/json\r\nAccept: application/json\r\n",
+                    'content' => $payload,
+                    'timeout' => 15,
+                    'ignore_errors' => true,
+                ],
+                'ssl' => [
+                    'verify_peer'      => false,
+                    'verify_peer_name' => false,
+                ]
             ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
 
-            $resp     = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlErr  = curl_error($ch);
-            curl_close($ch);
+            $resp     = @file_get_contents('https://be-data.dash.temins.id/send/notif', false, $ctx);
+            $httpCode = 0;
+            $netErr   = '';
+            if (isset($http_response_header)) {
+                preg_match('/HTTP\/\d+\.?\d*\s+(\d+)/', $http_response_header[0] ?? '', $m);
+                $httpCode = (int)($m[1] ?? 0);
+            }
+            if ($resp === false) {
+                $netErr = error_get_last()['message'] ?? 'network error';
+            }
 
             $results[] = [
-                "user_id"    => $uid,
-                "http_code"  => $httpCode,
-                "ok"         => ($httpCode >= 200 && $httpCode < 300 && !$curlErr),
-                "response"   => $resp ? json_decode($resp, true) : null,
-                "curl_error" => $curlErr ?: null,
+                "user_id"   => $uid,
+                "http_code" => $httpCode,
+                "ok"        => ($httpCode >= 200 && $httpCode < 300 && !$netErr),
+                "response"  => $resp ? json_decode($resp, true) : null,
+                "error"     => $netErr ?: null,
             ];
         }
 
@@ -526,26 +537,49 @@ if ($action === 'email-config') {
 <hr><p style='color:#888;font-size:12px'>Jangan balas email ini.</p>
 </body></html>";
 
-            // Kirim via cURL ke SMTP (atau gunakan PHP mail dengan stream)
-            // Gunakan socket SMTP manual agar tidak perlu library
+            // Kirim via SMTP socket: tcp + STARTTLS (port 587)
             $ok      = false;
             $errMsg  = '';
 
             try {
-                $socket = fsockopen('tls://' . $smtpHost, $smtpPort, $errno, $errstr, 30);
+                // 1. Koneksi TCP plaintext dulu (port 587 = STARTTLS)
+                $socket = stream_socket_client(
+                    'tcp://' . $smtpHost . ':' . $smtpPort,
+                    $errno, $errstr, 30
+                );
                 if (!$socket) {
-                    throw new Exception("Tidak bisa membuka koneksi SMTP: $errstr ($errno)");
+                    throw new Exception("Koneksi TCP gagal: $errstr ($errno)");
                 }
 
-                $read = fgets($socket, 515); // 220 greeting
+                stream_set_timeout($socket, 30);
 
-                // EHLO
+                fgets($socket, 515); // 220 greeting
+
+                // 2. EHLO
                 fputs($socket, "EHLO temins.local\r\n");
                 while ($line = fgets($socket, 515)) {
                     if (substr($line, 3, 1) === ' ') break;
                 }
 
-                // AUTH LOGIN
+                // 3. STARTTLS upgrade
+                fputs($socket, "STARTTLS\r\n");
+                $tlsResp = fgets($socket, 515);
+                if (strpos($tlsResp, '220') === false) {
+                    throw new Exception("STARTTLS ditolak: $tlsResp");
+                }
+
+                // 4. Aktifkan crypto di atas koneksi yang sama
+                if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                    throw new Exception("Gagal mengaktifkan TLS setelah STARTTLS");
+                }
+
+                // 5. EHLO ulang setelah TLS
+                fputs($socket, "EHLO temins.local\r\n");
+                while ($line = fgets($socket, 515)) {
+                    if (substr($line, 3, 1) === ' ') break;
+                }
+
+                // 6. AUTH LOGIN
                 fputs($socket, "AUTH LOGIN\r\n");
                 fgets($socket, 515); // 334
 
@@ -555,18 +589,18 @@ if ($action === 'email-config') {
                 fputs($socket, base64_encode($smtpPass) . "\r\n");
                 $authResp = fgets($socket, 515);
                 if (strpos($authResp, '235') === false) {
-                    throw new Exception("Autentikasi gagal: $authResp");
+                    throw new Exception("Autentikasi gagal: " . trim($authResp));
                 }
 
-                // MAIL FROM
+                // 7. MAIL FROM
                 fputs($socket, "MAIL FROM: <$smtpUser>\r\n");
                 fgets($socket, 515);
 
-                // RCPT TO
+                // 8. RCPT TO
                 fputs($socket, "RCPT TO: <$to>\r\n");
                 fgets($socket, 515);
 
-                // DATA
+                // 9. DATA
                 fputs($socket, "DATA\r\n");
                 fgets($socket, 515);
 
@@ -586,7 +620,7 @@ if ($action === 'email-config') {
                 if (strpos($dataResp, '250') !== false) {
                     $ok = true;
                 } else {
-                    $errMsg = "Server menolak pesan: $dataResp";
+                    $errMsg = "Server menolak pesan: " . trim($dataResp);
                 }
             } catch (Exception $e) {
                 $errMsg = $e->getMessage();
