@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"net/http"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	_ "github.com/go-sql-driver/mysql"
