@@ -233,9 +233,9 @@ func autoSaveCHState() {
 // CURAH HUJAN FUNCTIONS
 // ==========================
 
-func getLastCHAFromDB(deviceID string, date string) float64 {
+func getLastValueFromDB(deviceID string, parameter string, date string) float64 {
 	if pgDB == nil {
-		log.Println("❌ [DB] PostgreSQL pool not initialized for getLastCHAFromDB")
+		log.Printf("❌ [DB] PostgreSQL pool not initialized for %s\n", parameter)
 		return 0
 	}
 
@@ -244,22 +244,22 @@ func getLastCHAFromDB(deviceID string, date string) float64 {
 		SELECT value 
 		FROM sensor_logs 
 		WHERE device_unique_id = $1 
-		  AND parameter_name = 'cha' 
-		  AND recorded_at::text LIKE $2 || '%' 
+		  AND parameter_name = $2 
+		  AND recorded_at::text LIKE $3 || '%' 
 		ORDER BY recorded_at DESC 
 		LIMIT 1`
 
-	err := pgDB.QueryRow(query, deviceID, date).Scan(&lastValue)
+	err := pgDB.QueryRow(query, deviceID, parameter, date).Scan(&lastValue)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Printf("⚠️ [DB] No CHA data found for %s at %s\n", deviceID, date)
+			log.Printf("⚠️ [DB] No %s data found for %s at %s\n", parameter, deviceID, date)
 			return 0
 		}
-		log.Printf("❌ [DB] Query error in getLastCHAFromDB: %v\n", err)
+		log.Printf("❌ [DB] Query error in getLastValueFromDB: %v\n", err)
 		return 0
 	}
 
-	log.Printf("📦 [DB] Last CHA from %s for %s = %.2f mm\n", date, deviceID, lastValue)
+	log.Printf("📦 [DB] Last %s from %s for %s = %.2f\n", parameter, date, deviceID, lastValue)
 	return lastValue
 }
 
@@ -279,16 +279,21 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 		var initialAccum float64
 		
 		// Coba ambil dari data terakhir hari ini langsung dari database (jika program restart tapi hari yang sama)
-		lastCHA := getLastCHAFromDB(deviceID, currentDate)
+		lastCHA := getLastValueFromDB(deviceID, "cha", currentDate)
+		lastRawCH := getLastValueFromDB(deviceID, "ch", currentDate)
+		
 		if lastCHA > 0 {
-			log.Printf("📥 [CH] Recovered CHA state for %s: %.2f mm", deviceID, lastCHA)
-			if chValue >= lastCHA {
-				// Sensor tidak restart (nilai tip > akumulasi terakhir), teruskan.
-				initialAccum = chValue
-			} else {
-				// Sensor telah restart (mulai dari 0 atau nilai kecil).
-				// Tambahkan chValue saat ini ke akumulasi terakhir yang dicatat server.
+			log.Printf("📥 [CH] Recovered CHA state for %s: %.2f mm (Last Raw CH: %.2f)", deviceID, lastCHA, lastRawCH)
+			
+			if chValue < lastRawCH {
+				// Sensor telah restart (mulai dari 0 atau chValue lebih kecil dari lastRawCH).
+				// Artinya hujan yang baru (chValue) murni tambahan baru sejak sensor mati lampu.
 				initialAccum = lastCHA + chValue
+			} else {
+				// Sensor tidak restart (nilai tip >= lastRawCH).
+				// Kita cari selisih kenaikannya saja lalu tambahkan ke lastCHA.
+				diff := chValue - lastRawCH
+				initialAccum = lastCHA + diff
 			}
 		} else {
 			// Jika dari API 0 atau hari baru (00:00) yang sebenarnya
