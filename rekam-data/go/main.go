@@ -235,59 +235,33 @@ func autoSaveCHState() {
 // CURAH HUJAN FUNCTIONS
 // ==========================
 
-func getLastCHAFromAPI(deviceID string, date string) float64 {
-	url := fmt.Sprintf(
-		"https://be-data.dash.temins.id/api/get-data?device_id=%s&jenis=cha&tanggal=%s&limit=1",
-		deviceID, date,
-	)
+func getLastCHAFromDB(deviceID string, date string) float64 {
+	if pgDB == nil {
+		log.Println("❌ [DB] PostgreSQL pool not initialized for getLastCHAFromDB")
+		return 0
+	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	var lastValue float64
+	query := `
+		SELECT value 
+		FROM sensor_logs 
+		WHERE device_unique_id = $1 
+		  AND parameter_name = 'cha' 
+		  AND recorded_at::text LIKE $2 || '%' 
+		ORDER BY recorded_at DESC 
+		LIMIT 1`
+
+	err := pgDB.QueryRow(query, deviceID, date).Scan(&lastValue)
 	if err != nil {
-		log.Printf("❌ [API] Request error: %v\n", err)
+		if err == sql.ErrNoRows {
+			log.Printf("⚠️ [DB] No CHA data found for %s at %s\n", deviceID, date)
+			return 0
+		}
+		log.Printf("❌ [DB] Query error in getLastCHAFromDB: %v\n", err)
 		return 0
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer RAHASIA_TOKEN_KAMU")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("❌ [API] Call error: %v\n", err)
-		return 0
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("❌ [API] Read error: %v\n", err)
-		return 0
-	}
-
-	var apiResponse struct {
-		Status bool `json:"status"`
-		Data   []struct {
-			Value string `json:"value"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(body, &apiResponse); err != nil {
-		log.Printf("❌ [API] JSON parse error: %v\n", err)
-		return 0
-	}
-
-	if !apiResponse.Status || len(apiResponse.Data) == 0 {
-		log.Printf("⚠️ [API] No CHA data found for %s at %s\n", deviceID, date)
-		return 0
-	}
-
-	lastValue, err := strconv.ParseFloat(apiResponse.Data[0].Value, 64)
-	if err != nil {
-		log.Printf("❌ [API] Value parse error: %v\n", err)
-		return 0
-	}
-
-	log.Printf("📦 [API] Last CHA from %s for %s = %.2f mm\n", date, deviceID, lastValue)
+	log.Printf("📦 [DB] Last CHA from %s for %s = %.2f mm\n", date, deviceID, lastValue)
 	return lastValue
 }
 
@@ -300,15 +274,35 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 	lastDate, dateExists := chState.LastDate[deviceID]
 
-	// HARI BARU → RESET
+	// HARI BARU → RESET (Atau Start Up baru)
 	if !dateExists || lastDate != currentDate {
-		log.Printf("🌅 [CH] New day detected for %s → RESET", deviceID)
+		log.Printf("🌅 [CH] Init state for %s on %s", deviceID, currentDate)
+
+		var initialAccum float64
+		
+		// Coba ambil dari data terakhir hari ini langsung dari database (jika program restart tapi hari yang sama)
+		lastCHA := getLastCHAFromDB(deviceID, currentDate)
+		if lastCHA > 0 {
+			log.Printf("📥 [CH] Recovered CHA state for %s: %.2f mm", deviceID, lastCHA)
+			if chValue >= lastCHA {
+				// Sensor tidak restart (nilai tip > akumulasi terakhir), teruskan.
+				initialAccum = chValue
+			} else {
+				// Sensor telah restart (mulai dari 0 atau nilai kecil).
+				// Tambahkan chValue saat ini ke akumulasi terakhir yang dicatat server.
+				initialAccum = lastCHA + chValue
+			}
+		} else {
+			// Jika dari API 0 atau hari baru (00:00) yang sebenarnya
+			log.Printf("🌅 [CH] Resetting state for %s → RESET", deviceID)
+			initialAccum = chValue
+		}
 		
 		chState.LastDate[deviceID] = currentDate
 		chState.LastValue[deviceID] = chValue
-		chState.Accumulated[deviceID] = chValue
+		chState.Accumulated[deviceID] = initialAccum
 		
-		return chValue, false
+		return initialAccum, false
 	}
 
 	lastValue := chState.LastValue[deviceID]
