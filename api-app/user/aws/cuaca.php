@@ -78,14 +78,25 @@ $device_unique_id = $device['device_unique_id'];
 $q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' AND parameter_name IN ('Suhu Udara', 'Kelembapan Udara', 'Radiasi Matahari', 'Curah Hujan Berjalan', 'Kecepatan Angin') ");
 $rows = mysqli_fetch_all($q_data, MYSQLI_ASSOC);
 
-// Remap: { parameter_name => suffix_topic } misal { "Suhu Udara": "su" }
 $data = [];
+$mqtt_topics = [];
 foreach ($rows as $row) {
-    $suffix = basename($row['mqtt_topic']); // ambil bagian setelah '/' terakhir
-    $data[] = [$row['parameter_name'] => $suffix];
+    $code = '';
+    if ($row['parameter_name'] == 'Suhu Udara') $code = 'su';
+    else if ($row['parameter_name'] == 'Kelembapan Udara') $code = 'ku';
+    else if ($row['parameter_name'] == 'Radiasi Matahari') $code = 'rm';
+    else if ($row['parameter_name'] == 'Curah Hujan Berjalan') $code = 'cp';
+    else if ($row['parameter_name'] == 'Kecepatan Angin') $code = 'ka';
+    
+    if ($code !== '') {
+        $data[$code] = $row['mqtt_topic'];
+        $mqtt_topics[] = $row['mqtt_topic'];
+    }
 }
 
-echo json_encode(array("data"=>$data,
-"device_unique_id"=>$device_unique_id));    
-
-
+echo json_encode([
+    "status" => true,
+    "data" => $data,
+    "mqtt_topics" => $mqtt_topics,
+    "device_unique_id" => $device_unique_id
+]);
