@@ -81,7 +81,7 @@ $topics = [];
 $sql = "SELECT parameter_name, mqtt_topic, unit, category 
         FROM device_settings 
         WHERE device_unique_id = '$device_unique_id' 
-        AND is_visible = 1 AND category = 'sensor' 
+        AND is_visible = 1 AND category = 'sensor' AND parameter_name != 'Arus Charging' 
         ORDER BY display_order ASC";
 
 $q_config = mysqli_query($conn, $sql);
