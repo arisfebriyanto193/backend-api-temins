@@ -75,7 +75,10 @@ $device_unique_id = $device['device_unique_id'];
 
 
 // --- ROUTING LOGIC ---
-$q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' AND parameter_name IN ('Suhu Udara', 'Kelembapan Udara', 'Radiasi Matahari', 'Curah Hujan Berjalan', 'Kecepatan Angin') ");
+$q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' 
+AND parameter_name IN ('Suhu Udara',  'Suhu udara', 'Curah Hujan Berjalan',
+'Kelembapan Udara', 'Radiasi Matahari', 
+'Curah Hujan Berjalan', 'Kecepatan Angin') ");
 $rows = mysqli_fetch_all($q_data, MYSQLI_ASSOC);
 
 $data = [];
