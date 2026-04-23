@@ -75,21 +75,23 @@ $device_unique_id = $device['device_unique_id'];
 
 
 // --- ROUTING LOGIC ---
-$q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' 
-AND parameter_name IN ('Suhu Udara',  'Suhu udara', 'Curah Hujan Berjalan',
-'Kelembapan Udara', 'Radiasi Matahari', 
-'Curah Hujan Berjalan', 'Kecepatan Angin') ");
+    $q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' 
+    AND parameter_name IN ('Suhu Udara',  'Suhu udara', 'Curah Hujan Berjalan',
+    'Kelembapan Udara', 'Radiasi Matahari', 
+    'Curah Hujan Berjalan', 'Kecepatan Angin') ");
 $rows = mysqli_fetch_all($q_data, MYSQLI_ASSOC);
 
 $data = [];
 $mqtt_topics = [];
 foreach ($rows as $row) {
     $code = '';
-    if ($row['parameter_name'] == 'Suhu Udara' || $row['parameter_name'] == 'Suhu udara') $code = 'su';
-    else if ($row['parameter_name'] == 'Kelembapan Udara') $code = 'ku';
-    else if ($row['parameter_name'] == 'Radiasi Matahari') $code = 'rm';
-    else if ($row['parameter_name'] == 'Curah Hujan Berjalan') $code = 'cp';
-    else if ($row['parameter_name'] == 'Kecepatan Angin') $code = 'ka';
+    $param_name = trim(strtolower($row['parameter_name']));
+    
+    if ($param_name == 'suhu udara') $code = 'su';
+    else if ($param_name == 'kelembapan udara') $code = 'ku';
+    else if ($param_name == 'radiasi matahari') $code = 'rm';
+    else if ($param_name == 'curah hujan berjalan') $code = 'ch';
+    else if ($param_name == 'kecepatan angin') $code = 'ka';
     
     if ($code !== '') {
         $data[$code] = $row['mqtt_topic'];
