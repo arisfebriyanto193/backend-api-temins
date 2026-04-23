@@ -75,10 +75,7 @@ $device_unique_id = $device['device_unique_id'];
 
 
 // --- ROUTING LOGIC ---
-    $q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id' 
-    AND parameter_name IN ('Suhu Udara',  'Suhu udara', 'Curah Hujan Berjalan',
-    'Kelembapan Udara', 'Radiasi Matahari', 
-    'Curah Hujan Berjalan', 'Kecepatan Angin') ");
+$q_data = mysqli_query($conn, "SELECT parameter_name, mqtt_topic FROM device_settings WHERE device_unique_id='$device_unique_id'");
 $rows = mysqli_fetch_all($q_data, MYSQLI_ASSOC);
 
 $data = [];
@@ -87,13 +84,23 @@ foreach ($rows as $row) {
     $code = '';
     $param_name = trim(strtolower($row['parameter_name']));
     
-    if ($param_name == 'suhu udara') $code = 'su';
-    else if ($param_name == 'kelembapan udara') $code = 'ku';
-    else if ($param_name == 'radiasi matahari') $code = 'rm';
-    else if ($param_name == 'curah hujan berjalan') $code = 'ch';
-    else if ($param_name == 'kecepatan angin') $code = 'ka';
+    // Mengecek apakah string mengandung sebagian dari kata (menyerupai/mirip dengan)
+    // Walaupun typo seperti "suhuu" (jika pakai similar_text) atau nama bervariasi seperti "suhu udara" & "suhu",
+    // strpos sangat aman digunakan untuk fleksibilitas ini.
+    if (strpos($param_name, 'suhu') !== false) {
+        $code = 'su';
+    } else if (strpos($param_name, 'kelembapan') !== false || strpos($param_name, 'lembab') !== false) {
+        $code = 'ku';
+    } else if (strpos($param_name, 'radiasi') !== false || strpos($param_name, 'matahari') !== false) {
+        $code = 'rm';
+    } else if (strpos($param_name, 'hujan') !== false) {
+        $code = 'ch';
+    } else if (strpos($param_name, 'angin') !== false || strpos($param_name, 'kecepatan') !== false) {
+        $code = 'ka';
+    }
     
-    if ($code !== '') {
+    // Cek jika ditemukan kecocokan, dan pastikan datanya belum ada di array untuk menghindari dobel
+    if ($code !== '' && !isset($data[$code])) {
         $data[$code] = $row['mqtt_topic'];
         $mqtt_topics[] = $row['mqtt_topic'];
     }
