@@ -85,7 +85,7 @@ $data = [];
 $mqtt_topics = [];
 foreach ($rows as $row) {
     $code = '';
-    if ($row['parameter_name'] == 'Suhu Udara') $code = 'su';
+    if ($row['parameter_name'] == 'Suhu Udara' || $row['parameter_name'] == 'Suhu udara') $code = 'su';
     else if ($row['parameter_name'] == 'Kelembapan Udara') $code = 'ku';
     else if ($row['parameter_name'] == 'Radiasi Matahari') $code = 'rm';
     else if ($row['parameter_name'] == 'Curah Hujan Berjalan') $code = 'cp';
