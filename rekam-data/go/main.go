@@ -40,6 +40,7 @@ var (
 	CONFIG_JSON_PATH string
 	BUFFER_FILE_PATH string
 	CH_STATE_FILE    string // File untuk menyimpan state CH
+	ERROR_LOG_PATH   string
 )
 
 // ==========================
@@ -75,6 +76,8 @@ var (
 	}
 	
 	lastFileModTime time.Time
+	
+	errorLogMutex sync.Mutex
 )
 
 // ==========================
@@ -105,6 +108,76 @@ type Config struct {
 
 type MQTTMessage struct {
 	Value interface{} `json:"value"`
+}
+
+// ==========================
+// LOG FILE HANDLER
+// ==========================
+
+func writeLogToFile(level, message string) {
+	errorLogMutex.Lock()
+	defer errorLogMutex.Unlock()
+	
+	if ERROR_LOG_PATH == "" {
+		return
+	}
+	
+	now := getWIBTime()
+	logLine := fmt.Sprintf("[%s] %s: %s\n", formatWIBTimestamp(now), level, message)
+	
+	f, err := os.OpenFile(ERROR_LOG_PATH, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("⚠️ Failed to open error.log: %v", err)
+		return
+	}
+	defer f.Close()
+	f.WriteString(logLine)
+}
+
+func cleanOldLogs() {
+	for {
+		time.Sleep(6 * time.Hour)
+		
+		errorLogMutex.Lock()
+		if ERROR_LOG_PATH != "" {
+			data, err := os.ReadFile(ERROR_LOG_PATH)
+			if err == nil {
+				lines := strings.Split(string(data), "\n")
+				var newLines []string
+				twoDaysAgo := getWIBTime().Add(-48 * time.Hour)
+				
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if len(line) < 21 {
+						if len(line) > 0 {
+							newLines = append(newLines, line)
+						}
+						continue
+					}
+					if strings.HasPrefix(line, "[") {
+						timestampStr := line[1:20]
+						t, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+						if err == nil {
+							if t.After(twoDaysAgo) {
+								newLines = append(newLines, line)
+							}
+						} else {
+							newLines = append(newLines, line)
+						}
+					} else {
+						newLines = append(newLines, line)
+					}
+				}
+				
+				if len(newLines) > 0 {
+					os.WriteFile(ERROR_LOG_PATH, []byte(strings.Join(newLines, "\n")+"\n"), 0644)
+				} else {
+					os.WriteFile(ERROR_LOG_PATH, []byte(""), 0644)
+				}
+			}
+		}
+		errorLogMutex.Unlock()
+	}
 }
 
 // ==========================
@@ -720,7 +793,8 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 func flushToDB() {
 	nextInterval, secondsToWait := getNext5MinInterval()
 	log.Printf("⏰ [DB] Next flush at: %s WIB\n", formatWIBTimestamp(nextInterval))
-	time.Sleep(secondsToWait)
+	// Tambah 2 detik agar tidak dieksekusi sebelum ms interval berikutnya (mencegah timestamp meleset dan loop kosong)
+	time.Sleep(secondsToWait + 2*time.Second)
 	
 	for {
 		batchTimestamp := getRounded5MinTimestamp()
@@ -735,36 +809,54 @@ func flushToDB() {
 			stateLock.RUnlock()
 		} else {
 			if pgDB == nil {
-				log.Printf("❌ [DB] PostgreSQL pool not initialized\n")
+				msg := "PostgreSQL pool not initialized"
+				log.Printf("❌ [DB] %s\n", msg)
+				writeLogToFile("ERROR", msg)
 			} else {
 				tx, err := pgDB.Begin()
 				if err != nil {
-					log.Printf("❌ [DB] Transaction error: %v\n", err)
+					msg := fmt.Sprintf("Transaction error: %v", err)
+					log.Printf("❌ [DB] %s\n", msg)
+					writeLogToFile("ERROR", msg)
 				} else {
 					defer tx.Rollback()
 					
 					stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
 					if err != nil {
-						log.Printf("❌ [DB] Prepare error: %v\n", err)
+						msg := fmt.Sprintf("Prepare error: %v", err)
+						log.Printf("❌ [DB] %s\n", msg)
+						writeLogToFile("ERROR", msg)
 					} else {
 						defer stmt.Close()
 						
 						successCount := 0
+						var errMessages []string
 						
 						for _, d := range dataToSave {
 							_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
 							if err != nil {
-								log.Printf("❌ [DB] Insert failed: %v\n", err)
+								msg := fmt.Sprintf("Insert failed (%s %s): %v", d.DeviceID, d.Parameter, err)
+								log.Printf("❌ [DB] %s\n", msg)
+								errMessages = append(errMessages, msg)
 							} else {
 								successCount++
 							}
 						}
 						
-						if successCount == len(dataToSave) {
+						if len(errMessages) > 0 {
+							writeLogToFile("ERROR", strings.Join(errMessages, " ; "))
+						}
+						
+						// Jika ada setidaknya 1 insert yang berhasil, maka commit
+						if successCount > 0 {
 							if err := tx.Commit(); err != nil {
-								log.Printf("❌ [DB] Commit error: %v\n", err)
+								msg := fmt.Sprintf("Commit error: %v", err)
+								log.Printf("❌ [DB] %s\n", msg)
+								writeLogToFile("ERROR", msg)
 							} else {
+								msg := fmt.Sprintf("Berhasil menyimpan %d data dari total %d data pada %s", successCount, len(dataToSave), batchTimestampStr)
 								log.Printf("💾 [DB] Flushed %d records at %s\n", successCount, batchTimestampStr)
+								writeLogToFile("SUCCESS", msg)
 								
 								for _, d := range dataToSave {
 									emoji := "✅"
@@ -778,6 +870,8 @@ func flushToDB() {
 									log.Printf("   %s %s | %s = %.2f\n", emoji, d.DeviceID, d.Parameter, d.Value)
 								}
 							}
+						} else {
+							writeLogToFile("ERROR", "Semua data gagal disimpan ke database")
 						}
 					}
 				}
@@ -785,7 +879,7 @@ func flushToDB() {
 		}
 		
 		nextInterval, secondsToWait = getNext5MinInterval()
-		time.Sleep(secondsToWait)
+		time.Sleep(secondsToWait + 2*time.Second)
 	}
 }
 
@@ -871,6 +965,7 @@ func main() {
 	CONFIG_JSON_PATH = filepath.Join(baseDir, "../py/1.json")
 	BUFFER_FILE_PATH = filepath.Join(baseDir, "buf2.json")
 	CH_STATE_FILE = filepath.Join(baseDir, "ch_state.json")
+	ERROR_LOG_PATH = filepath.Join(baseDir, "error.log")
 	
 	log.Println("\n🚀 TEMINS IoT Logger - Optimized Version")
 	log.Printf("🕐 Current Time (WIB): %s\n", formatWIBTimestamp(getWIBTime()))
@@ -929,6 +1024,7 @@ func main() {
 	go autoRefreshSensorCache()
 	go statusMonitor()
 	go autoSaveCHState()
+	go cleanOldLogs()
 	go StartLogServer(WEBSOCKET_LOG_PORT)
 	
 	time.Sleep(1 * time.Second)
