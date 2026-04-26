@@ -66,6 +66,10 @@ var (
 	awlrCalculationCount int64
 	restartDetected      int64
 	mqttConnected        bool
+
+	// In-memory buffer (replaces file-based buffer to prevent race conditions)
+	bufferMu   sync.Mutex
+	bufferData = make(map[string]BufferData)
 	
 	// CH state - sekarang di-persist ke file
 	chState struct {
@@ -542,16 +546,10 @@ func getSensorHeightFromCache(deviceID string) (float64, bool) {
 }
 
 // ==========================
-// BUFFER FILE HANDLER
+// BUFFER HANDLER (In-Memory, thread-safe)
 // ==========================
 
-func saveToBufferFile(deviceID, parameter string, value float64) {
-	// Read existing buffer
-	data := make(map[string]BufferData)
-	if fileData, err := os.ReadFile(BUFFER_FILE_PATH); err == nil {
-		json.Unmarshal(fileData, &data)
-	}
-	
+func saveToBuffer(deviceID, parameter string, value float64) {
 	// Get device type
 	stateLock.RLock()
 	deviceType := deviceMap[deviceID]
@@ -559,43 +557,45 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 		deviceType = "Unknown Type"
 	}
 	stateLock.RUnlock()
-	
+
 	timestamp := formatWIBTimestamp(getWIBTime())
-	
+
+	// Compute CHA BEFORE acquiring bufferMu (processCurahHujan has its own lock)
+	var chaValue float64
+	var chRestart bool
+	if parameter == "ch" {
+		chaValue, chRestart = processCurahHujan(deviceID, value)
+	}
+
+	bufferMu.Lock()
+	defer bufferMu.Unlock()
+
 	// Handle CH parameter
 	if parameter == "ch" {
-		// Save original CH value
 		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		data[key] = BufferData{
+		bufferData[key] = BufferData{
 			DeviceID:   deviceID,
 			DeviceType: deviceType,
 			Parameter:  parameter,
 			Value:      value,
 			Timestamp:  timestamp,
 		}
-		
-		log.Printf("📥 [BUFFER] Saved CH: Device=%s, Value=%.2f mm\n", deviceID, value)
-		
-		// Calculate and save CHA
-		chaValue, restartDetected := processCurahHujan(deviceID, value)
 		chaKey := fmt.Sprintf("%s|cha", deviceID)
-		data[chaKey] = BufferData{
+		bufferData[chaKey] = BufferData{
 			DeviceID:   deviceID,
 			DeviceType: deviceType,
 			Parameter:  "cha",
 			Value:      chaValue,
 			Timestamp:  timestamp,
 		}
-		
-		if restartDetected {
-			log.Printf("📥 [BUFFER] Saved CHA: Device=%s, Value=%.2f mm (⚠️ RESTART)\n", deviceID, chaValue)
+		if chRestart {
+			log.Printf("📥 [BUFFER] CH=%.2f CHA=%.2f (⚠️ RESTART) dev=%s\n", value, chaValue, deviceID)
 		} else {
-			log.Printf("📥 [BUFFER] Saved CHA: Device=%s, Value=%.2f mm\n", deviceID, chaValue)
+			log.Printf("📥 [BUFFER] CH=%.2f CHA=%.2f dev=%s\n", value, chaValue, deviceID)
 		}
 	} else {
-		// Normal parameter
 		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		data[key] = BufferData{
+		bufferData[key] = BufferData{
 			DeviceID:   deviceID,
 			DeviceType: deviceType,
 			Parameter:  parameter,
@@ -603,61 +603,44 @@ func saveToBufferFile(deviceID, parameter string, value float64) {
 			Timestamp:  timestamp,
 		}
 	}
-	
+
 	// AWLR Calculation
 	if strings.ToLower(deviceType) == "awlr" && parameter == "tuc" {
 		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 			tinggiAir := tinggiSensor - value
 			airKey := fmt.Sprintf("%s|result_tinggi_air", deviceID)
-			data[airKey] = BufferData{
+			bufferData[airKey] = BufferData{
 				DeviceID:   deviceID,
 				DeviceType: deviceType,
 				Parameter:  "result_tinggi_air",
 				Value:      tinggiAir,
 				Timestamp:  timestamp,
 			}
-			
 			stateLock.Lock()
 			awlrCalculationCount++
 			stateLock.Unlock()
 		}
 	}
-	
-	// Write to file
-	if jsonData, err := json.MarshalIndent(data, "", "    "); err == nil {
-		os.WriteFile(BUFFER_FILE_PATH, jsonData, 0644)
-	}
 }
 
 func readAndClearBuffer() []BufferData {
-	if _, err := os.Stat(BUFFER_FILE_PATH); os.IsNotExist(err) {
+	bufferMu.Lock()
+	defer bufferMu.Unlock()
+
+	if len(bufferData) == 0 {
 		return []BufferData{}
 	}
-	
-	fileData, err := os.ReadFile(BUFFER_FILE_PATH)
-	if err != nil {
-		log.Printf("❌ [BUFFER] Read error: %v\n", err)
-		return []BufferData{}
-	}
-	
-	dataMap := make(map[string]BufferData)
-	if err := json.Unmarshal(fileData, &dataMap); err != nil {
-		log.Printf("❌ [BUFFER] Parse error: %v\n", err)
-		return []BufferData{}
-	}
-	
-	log.Printf("📊 [BUFFER] Entries to flush: %d\n", len(dataMap))
-	
-	// Clear file
-	emptyData, _ := json.Marshal(map[string]interface{}{})
-	os.WriteFile(BUFFER_FILE_PATH, emptyData, 0644)
-	
-	// Convert to slice
-	result := make([]BufferData, 0, len(dataMap))
-	for _, v := range dataMap {
+
+	log.Printf("📊 [BUFFER] Entries to flush: %d\n", len(bufferData))
+
+	result := make([]BufferData, 0, len(bufferData))
+	for _, v := range bufferData {
 		result = append(result, v)
 	}
-	
+
+	// Reset in-memory map
+	bufferData = make(map[string]BufferData)
+
 	return result
 }
 
@@ -783,12 +766,78 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 		}
 	}
 	
-	saveToBufferFile(deviceID, parameter, value)
+	saveToBuffer(deviceID, parameter, value)
 }
 
 // ==========================
 // BACKGROUND THREADS
 // ==========================
+
+// flushBatch dipisah dari flushToDB agar defer tx.Rollback/stmt.Close
+// dieksekusi per-pemanggilan, bukan menunggu flushToDB selesai (defer-in-loop bug).
+func flushBatch(dataToSave []BufferData, batchTimestampStr string) {
+	tx, err := pgDB.Begin()
+	if err != nil {
+		msg := fmt.Sprintf("Transaction error: %v", err)
+		log.Printf("❌ [DB] %s\n", msg)
+		writeLogToFile("ERROR", msg)
+		return
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
+	if err != nil {
+		msg := fmt.Sprintf("Prepare error: %v", err)
+		log.Printf("❌ [DB] %s\n", msg)
+		writeLogToFile("ERROR", msg)
+		return
+	}
+	defer stmt.Close()
+
+	successCount := 0
+	var errMessages []string
+
+	for _, d := range dataToSave {
+		_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
+		if err != nil {
+			msg := fmt.Sprintf("Insert failed (%s %s): %v", d.DeviceID, d.Parameter, err)
+			log.Printf("❌ [DB] %s\n", msg)
+			errMessages = append(errMessages, msg)
+		} else {
+			successCount++
+		}
+	}
+
+	if len(errMessages) > 0 {
+		writeLogToFile("ERROR", strings.Join(errMessages, " ; "))
+	}
+
+	if successCount > 0 {
+		if err := tx.Commit(); err != nil {
+			msg := fmt.Sprintf("Commit error: %v", err)
+			log.Printf("❌ [DB] %s\n", msg)
+			writeLogToFile("ERROR", msg)
+		} else {
+			msg := fmt.Sprintf("Berhasil menyimpan %d data dari total %d data pada %s", successCount, len(dataToSave), batchTimestampStr)
+			log.Printf("💾 [DB] Flushed %d records at %s\n", successCount, batchTimestampStr)
+			writeLogToFile("SUCCESS", msg)
+
+			for _, d := range dataToSave {
+				emoji := "✅"
+				if strings.Contains(d.Parameter, "result_tinggi_air") {
+					emoji = "🌊"
+				} else if d.Parameter == "cha" {
+					emoji = "☔"
+				} else if d.Parameter == "ch" {
+					emoji = "🌧️"
+				}
+				log.Printf("   %s %s | %s = %.2f\n", emoji, d.DeviceID, d.Parameter, d.Value)
+			}
+		}
+	} else {
+		writeLogToFile("ERROR", "Semua data gagal disimpan ke database")
+	}
+}
 
 func flushToDB() {
 	nextInterval, secondsToWait := getNext5MinInterval()
@@ -813,68 +862,8 @@ func flushToDB() {
 				log.Printf("❌ [DB] %s\n", msg)
 				writeLogToFile("ERROR", msg)
 			} else {
-				tx, err := pgDB.Begin()
-				if err != nil {
-					msg := fmt.Sprintf("Transaction error: %v", err)
-					log.Printf("❌ [DB] %s\n", msg)
-					writeLogToFile("ERROR", msg)
-				} else {
-					defer tx.Rollback()
-					
-					stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
-					if err != nil {
-						msg := fmt.Sprintf("Prepare error: %v", err)
-						log.Printf("❌ [DB] %s\n", msg)
-						writeLogToFile("ERROR", msg)
-					} else {
-						defer stmt.Close()
-						
-						successCount := 0
-						var errMessages []string
-						
-						for _, d := range dataToSave {
-							_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
-							if err != nil {
-								msg := fmt.Sprintf("Insert failed (%s %s): %v", d.DeviceID, d.Parameter, err)
-								log.Printf("❌ [DB] %s\n", msg)
-								errMessages = append(errMessages, msg)
-							} else {
-								successCount++
-							}
-						}
-						
-						if len(errMessages) > 0 {
-							writeLogToFile("ERROR", strings.Join(errMessages, " ; "))
-						}
-						
-						// Jika ada setidaknya 1 insert yang berhasil, maka commit
-						if successCount > 0 {
-							if err := tx.Commit(); err != nil {
-								msg := fmt.Sprintf("Commit error: %v", err)
-								log.Printf("❌ [DB] %s\n", msg)
-								writeLogToFile("ERROR", msg)
-							} else {
-								msg := fmt.Sprintf("Berhasil menyimpan %d data dari total %d data pada %s", successCount, len(dataToSave), batchTimestampStr)
-								log.Printf("💾 [DB] Flushed %d records at %s\n", successCount, batchTimestampStr)
-								writeLogToFile("SUCCESS", msg)
-								
-								for _, d := range dataToSave {
-									emoji := "✅"
-									if strings.Contains(d.Parameter, "result_tinggi_air") {
-										emoji = "🌊"
-									} else if d.Parameter == "cha" {
-										emoji = "☔"
-									} else if d.Parameter == "ch" {
-										emoji = "🌧️"
-									}
-									log.Printf("   %s %s | %s = %.2f\n", emoji, d.DeviceID, d.Parameter, d.Value)
-								}
-							}
-						} else {
-							writeLogToFile("ERROR", "Semua data gagal disimpan ke database")
-						}
-					}
-				}
+				// Wrap DB flush in helper to avoid defer-in-loop bug
+				flushBatch(dataToSave, batchTimestampStr)
 			}
 		}
 		
