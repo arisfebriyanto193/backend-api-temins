@@ -15,7 +15,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 // ==========================
@@ -67,9 +67,10 @@ var (
 	restartDetected      int64
 	mqttConnected        bool
 
-	// In-memory buffer (replaces file-based buffer to prevent race conditions)
-	bufferMu   sync.Mutex
-	bufferData = make(map[string]BufferData)
+	// In-memory queues for worker pool
+	rawMessageQueue = make(chan RawMessage, 50000)
+	dbBatchQueue    = make(chan BufferData, 50000)
+	bufferMu        sync.Mutex // Used for fallback file operations
 	
 	// CH state - sekarang di-persist ke file
 	chState struct {
@@ -93,6 +94,13 @@ type BufferData struct {
 	Parameter  string    `json:"parameter"`
 	Value      float64   `json:"value"`
 	Timestamp  string    `json:"timestamp"`
+}
+
+type RawMessage struct {
+	DeviceID  string
+	Parameter string
+	Value     float64
+	Timestamp string
 }
 
 type DeviceConfig struct {
@@ -549,7 +557,12 @@ func getSensorHeightFromCache(deviceID string) (float64, bool) {
 // BUFFER HANDLER (In-Memory, thread-safe)
 // ==========================
 
-func saveToBuffer(deviceID, parameter string, value float64) {
+func saveToBuffer(msg RawMessage) {
+	deviceID := msg.DeviceID
+	parameter := msg.Parameter
+	value := msg.Value
+	timestamp := msg.Timestamp
+
 	// Get device type
 	stateLock.RLock()
 	deviceType := deviceMap[deviceID]
@@ -558,8 +571,6 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 	}
 	stateLock.RUnlock()
 
-	timestamp := formatWIBTimestamp(getWIBTime())
-
 	// Compute CHA BEFORE acquiring bufferMu (processCurahHujan has its own lock)
 	var chaValue float64
 	var chRestart bool
@@ -567,21 +578,18 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 		chaValue, chRestart = processCurahHujan(deviceID, value)
 	}
 
-	bufferMu.Lock()
-	defer bufferMu.Unlock()
+	// Queue main parameter
+	dbBatchQueue <- BufferData{
+		DeviceID:   deviceID,
+		DeviceType: deviceType,
+		Parameter:  parameter,
+		Value:      value,
+		Timestamp:  timestamp,
+	}
 
 	// Handle CH parameter
 	if parameter == "ch" {
-		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		bufferData[key] = BufferData{
-			DeviceID:   deviceID,
-			DeviceType: deviceType,
-			Parameter:  parameter,
-			Value:      value,
-			Timestamp:  timestamp,
-		}
-		chaKey := fmt.Sprintf("%s|cha", deviceID)
-		bufferData[chaKey] = BufferData{
+		dbBatchQueue <- BufferData{
 			DeviceID:   deviceID,
 			DeviceType: deviceType,
 			Parameter:  "cha",
@@ -593,23 +601,13 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 		} else {
 			log.Printf("📥 [BUFFER] CH=%.2f CHA=%.2f dev=%s\n", value, chaValue, deviceID)
 		}
-	} else {
-		key := fmt.Sprintf("%s|%s", deviceID, parameter)
-		bufferData[key] = BufferData{
-			DeviceID:   deviceID,
-			DeviceType: deviceType,
-			Parameter:  parameter,
-			Value:      value,
-			Timestamp:  timestamp,
-		}
 	}
 
 	// AWLR Calculation
 	if strings.ToLower(deviceType) == "awlr" && parameter == "tuc" {
 		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 			tinggiAir := tinggiSensor - value
-			airKey := fmt.Sprintf("%s|result_tinggi_air", deviceID)
-			bufferData[airKey] = BufferData{
+			dbBatchQueue <- BufferData{
 				DeviceID:   deviceID,
 				DeviceType: deviceType,
 				Parameter:  "result_tinggi_air",
@@ -623,25 +621,14 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 	}
 }
 
-func readAndClearBuffer() []BufferData {
-	bufferMu.Lock()
-	defer bufferMu.Unlock()
-
-	if len(bufferData) == 0 {
-		return []BufferData{}
+func startMessageProcessors(numWorkers int) {
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for msg := range rawMessageQueue {
+				saveToBuffer(msg)
+			}
+		}()
 	}
-
-	log.Printf("📊 [BUFFER] Entries to flush: %d\n", len(bufferData))
-
-	result := make([]BufferData, 0, len(bufferData))
-	for _, v := range bufferData {
-		result = append(result, v)
-	}
-
-	// Reset in-memory map
-	bufferData = make(map[string]BufferData)
-
-	return result
 }
 
 // ==========================
@@ -765,61 +752,37 @@ func onMessage(client mqtt.Client, msg mqtt.Message) {
 			value = parsedValue
 		}
 	}
-	
-	saveToBuffer(deviceID, parameter, value)
+	// Push to processing queue (Worker Pattern)
+	select {
+	case rawMessageQueue <- RawMessage{
+		DeviceID:  deviceID,
+		Parameter: parameter,
+		Value:     value,
+		Timestamp: formatWIBTimestamp(getWIBTime()),
+	}:
+	default:
+		log.Printf("❌ [QUEUE] rawMessageQueue is full, dropping data for %s", deviceID)
+	}
 }
 
 // ==========================
 // BACKGROUND THREADS
 // ==========================
 
-// flushBatch dipisah dari flushToDB agar defer tx.Rollback/stmt.Close
-// dieksekusi per-pemanggilan, bukan menunggu flushToDB selesai (defer-in-loop bug).
-func flushBatch(dataToSave []BufferData, batchTimestampStr string) {
-	tx, err := pgDB.Begin()
-	if err != nil {
-		msg := fmt.Sprintf("Transaction error: %v", err)
-		log.Printf("❌ [DB] %s\n", msg)
-		writeLogToFile("ERROR", msg)
+// flushBatch memproses batch dan melakukan retry jika gagal
+func flushBatch(dataToSave []BufferData) {
+	if len(dataToSave) == 0 {
 		return
 	}
-	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("INSERT INTO sensor_logs (device_unique_id, parameter_name, value, recorded_at) VALUES ($1, $2, $3, $4)")
-	if err != nil {
-		msg := fmt.Sprintf("Prepare error: %v", err)
-		log.Printf("❌ [DB] %s\n", msg)
-		writeLogToFile("ERROR", msg)
-		return
-	}
-	defer stmt.Close()
+	batchTimestampStr := dataToSave[0].Timestamp
+	maxRetries := 3
 
-	successCount := 0
-	var errMessages []string
-
-	for _, d := range dataToSave {
-		_, err := stmt.Exec(d.DeviceID, d.Parameter, d.Value, batchTimestampStr)
-		if err != nil {
-			msg := fmt.Sprintf("Insert failed (%s %s): %v", d.DeviceID, d.Parameter, err)
-			log.Printf("❌ [DB] %s\n", msg)
-			errMessages = append(errMessages, msg)
-		} else {
-			successCount++
-		}
-	}
-
-	if len(errMessages) > 0 {
-		writeLogToFile("ERROR", strings.Join(errMessages, " ; "))
-	}
-
-	if successCount > 0 {
-		if err := tx.Commit(); err != nil {
-			msg := fmt.Sprintf("Commit error: %v", err)
-			log.Printf("❌ [DB] %s\n", msg)
-			writeLogToFile("ERROR", msg)
-		} else {
-			msg := fmt.Sprintf("Berhasil menyimpan %d data dari total %d data pada %s", successCount, len(dataToSave), batchTimestampStr)
-			log.Printf("💾 [DB] Flushed %d records at %s\n", successCount, batchTimestampStr)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err := bulkInsert(dataToSave)
+		if err == nil {
+			msg := fmt.Sprintf("Berhasil menyimpan %d data pada %s (Bulk Insert)", len(dataToSave), batchTimestampStr)
+			log.Printf("💾 [DB] Flushed %d records\n", len(dataToSave))
 			writeLogToFile("SUCCESS", msg)
 
 			for _, d := range dataToSave {
@@ -833,42 +796,166 @@ func flushBatch(dataToSave []BufferData, batchTimestampStr string) {
 				}
 				log.Printf("   %s %s | %s = %.2f\n", emoji, d.DeviceID, d.Parameter, d.Value)
 			}
+			return // Success
 		}
-	} else {
-		writeLogToFile("ERROR", "Semua data gagal disimpan ke database")
+
+		msg := fmt.Sprintf("Bulk insert failed (attempt %d/%d): %v", attempt, maxRetries, err)
+		log.Printf("❌ [DB] %s\n", msg)
+		writeLogToFile("ERROR", msg)
+
+		if attempt < maxRetries {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second) // Exponential backoff
+		}
+	}
+
+	// Fallback to file if all retries fail to prevent data loss
+	saveFailedBatchToFile(dataToSave)
+}
+
+func bulkInsert(dataToSave []BufferData) error {
+	if pgDB == nil {
+		return fmt.Errorf("postgreSQL pool not initialized")
+	}
+
+	tx, err := pgDB.Begin()
+	if err != nil {
+		return fmt.Errorf("transaction error: %v", err)
+	}
+
+	// Use pq.CopyIn for fast bulk inserts
+	stmt, err := tx.Prepare(pq.CopyIn("sensor_logs", "device_unique_id", "parameter_name", "value", "recorded_at"))
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("prepare COPY error: %v", err)
+	}
+
+	for _, d := range dataToSave {
+		_, err = stmt.Exec(d.DeviceID, d.Parameter, d.Value, d.Timestamp)
+		if err != nil {
+			stmt.Close()
+			tx.Rollback()
+			return fmt.Errorf("COPY exec error: %v", err)
+		}
+	}
+
+	_, err = stmt.Exec()
+	if err != nil {
+		stmt.Close()
+		tx.Rollback()
+		return fmt.Errorf("COPY final exec error: %v", err)
+	}
+
+	err = stmt.Close()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("stmt close error: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit error: %v", err)
+	}
+
+	return nil
+}
+
+func saveFailedBatchToFile(data []BufferData) {
+	bufferMu.Lock()
+	defer bufferMu.Unlock()
+
+	f, err := os.OpenFile(BUFFER_FILE_PATH, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("❌ [FALLBACK] Failed to open fallback file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	encoder := json.NewEncoder(f)
+	for _, d := range data {
+		if err := encoder.Encode(d); err != nil {
+			log.Printf("❌ [FALLBACK] Encode error: %v\n", err)
+		}
+	}
+	log.Printf("⚠️ [FALLBACK] Saved %d failed records to %s\n", len(data), BUFFER_FILE_PATH)
+}
+
+func retryFailedBatches() {
+	for {
+		time.Sleep(1 * time.Minute)
+
+		if pgDB == nil || pgDB.Ping() != nil {
+			continue // Skip if DB is not healthy
+		}
+
+		bufferMu.Lock()
+		if _, err := os.Stat(BUFFER_FILE_PATH); os.IsNotExist(err) {
+			bufferMu.Unlock()
+			continue
+		}
+
+		data, err := os.ReadFile(BUFFER_FILE_PATH)
+		if err != nil {
+			bufferMu.Unlock()
+			continue
+		}
+
+		// Clear the fallback file
+		os.WriteFile(BUFFER_FILE_PATH, []byte(""), 0644)
+		bufferMu.Unlock()
+
+		if len(data) == 0 {
+			continue
+		}
+
+		lines := strings.Split(string(data), "\n")
+		var recovered []BufferData
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			var d BufferData
+			if err := json.Unmarshal([]byte(line), &d); err == nil {
+				recovered = append(recovered, d)
+			}
+		}
+
+		if len(recovered) > 0 {
+			log.Printf("🔄 [FALLBACK] Recovering %d records from fallback file...\n", len(recovered))
+			for _, d := range recovered {
+				dbBatchQueue <- d
+			}
+		}
 	}
 }
 
-func flushToDB() {
-	nextInterval, secondsToWait := getNext5MinInterval()
-	log.Printf("⏰ [DB] Next flush at: %s WIB\n", formatWIBTimestamp(nextInterval))
-	// Tambah 2 detik agar tidak dieksekusi sebelum ms interval berikutnya (mencegah timestamp meleset dan loop kosong)
-	time.Sleep(secondsToWait + 2*time.Second)
-	
+func dbBatchWorker() {
+	const BATCH_SIZE = 500
+	const FLUSH_INTERVAL = 5 * time.Second
+
+	var batch []BufferData
+	ticker := time.NewTicker(FLUSH_INTERVAL)
+
 	for {
-		batchTimestamp := getRounded5MinTimestamp()
-		batchTimestampStr := formatWIBTimestamp(batchTimestamp)
-		
-		dataToSave := readAndClearBuffer()
-		
-		if len(dataToSave) == 0 {
-			stateLock.RLock()
-			log.Printf("📊 [STATUS] MQTT: %d | AWLR: %d | CH-Restart: %d\n",
-				mqttMessageCount, awlrCalculationCount, restartDetected)
-			stateLock.RUnlock()
-		} else {
-			if pgDB == nil {
-				msg := "PostgreSQL pool not initialized"
-				log.Printf("❌ [DB] %s\n", msg)
-				writeLogToFile("ERROR", msg)
+		select {
+		case data := <-dbBatchQueue:
+			batch = append(batch, data)
+			if len(batch) >= BATCH_SIZE {
+				flushBatch(batch)
+				batch = nil
+				ticker.Reset(FLUSH_INTERVAL)
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				flushBatch(batch)
+				batch = nil
 			} else {
-				// Wrap DB flush in helper to avoid defer-in-loop bug
-				flushBatch(dataToSave, batchTimestampStr)
+				// Log status periodically if queue is empty
+				stateLock.RLock()
+				log.Printf("📊 [STATUS] MQTT: %d | AWLR: %d | CH-Restart: %d\n",
+					mqttMessageCount, awlrCalculationCount, restartDetected)
+				stateLock.RUnlock()
 			}
 		}
-		
-		nextInterval, secondsToWait = getNext5MinInterval()
-		time.Sleep(secondsToWait + 2*time.Second)
 	}
 }
 
@@ -1009,7 +1096,11 @@ func main() {
 	client := mqtt.NewClient(opts)
 	
 	// Start background threads
-	go flushToDB()
+	log.Println("🔄 [INIT] Starting worker pools...")
+	startMessageProcessors(5) // 5 concurrent processors for CH/AWLR
+	go dbBatchWorker()
+	go retryFailedBatches()
+	
 	go autoRefreshSensorCache()
 	go statusMonitor()
 	go autoSaveCHState()
