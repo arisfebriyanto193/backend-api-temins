@@ -183,6 +183,15 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 	currentAccumulation := chState.Accumulated[deviceID]
 
 	// SENSOR RESTART (nilai turun dibanding sebelumnya)
+	// Artinya sensor mati/restart dan mulai menghitung ulang dari 0.
+	// → Tambahkan chValue ke CHA (hujan sejak sensor nyala kembali)
+	// → Reset lastValue ke 0 (bukan ke chValue!), karena sensor sekarang
+	//   menghitung dari 0, sehingga interval berikutnya diff dihitung dari 0.
+	//
+	// Contoh:
+	//   lastValue=0.20 → restart → chValue=0.10
+	//   CHA += 0.10, lastValue = 0
+	//   Next ch=0.20: diff = 0.20 - 0 = 0.20 ✅ (bukan 0.20 - 0.10 = 0.10 ❌)
 	if chValue < lastValue {
 		stateLock.Lock()
 		restartDetected++
@@ -190,9 +199,9 @@ func processCurahHujan(deviceID string, chValue float64) (float64, bool) {
 
 		newAccumulation := currentAccumulation + chValue
 		chState.Accumulated[deviceID] = newAccumulation
-		chState.LastValue[deviceID] = chValue
+		chState.LastValue[deviceID] = 0 // reset ke 0, bukan ke chValue
 
-		log.Printf("🔄 [CH] Restart detected → +%.2f mm", chValue)
+		log.Printf("🔄 [CH] Restart detected → +%.2f mm (lastValue reset ke 0)", chValue)
 		return newAccumulation, true
 	}
 
