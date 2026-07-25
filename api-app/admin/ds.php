@@ -88,6 +88,7 @@ if ($method === 'GET') {
   if ($action === 'get_device_config' && isset($_GET['device_unique_id'])) {
 
     $did = mysqli_real_escape_string($conn, $_GET['device_unique_id']);
+    $uid_filter = isset($_GET['user_id']) ? mysqli_real_escape_string($conn, $_GET['user_id']) : null;
     $settings = [];
 
     // ================================
@@ -145,14 +146,18 @@ if ($method === 'GET') {
     $device_type = '';
     $lokasi = '';
 
-    $q_device = mysqli_query(
-        $conn,
-        "SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, u.email, u.username
+    $sql_device = "SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, u.email, u.username
          FROM user_devices d
          JOIN users u ON d.user_id = u.id
-         WHERE d.device_unique_id = '$did'
-         LIMIT 1"
-    );
+         WHERE d.device_unique_id = '$did'";
+         
+    if ($uid_filter) {
+        $sql_device .= " AND u.id = '$uid_filter'";
+    }
+    
+    $sql_device .= " LIMIT 1";
+
+    $q_device = mysqli_query($conn, $sql_device);
 
     if ($r_dev = mysqli_fetch_assoc($q_device)) {
         $timezone   = $r_dev['timezone'];
@@ -445,26 +450,17 @@ if (
         SET timezone = ?, status = ?, location = ?, city = ?, 
             owner_name = ?, internet_no = ?, pic = ?, pic_contact = ?, 
             masa_aktif = ?, masa_paket = ?, waktu_add = ?
-        WHERE device_unique_id = ?
+        WHERE device_unique_id = ? AND user_id = ?
     ");
-    $stmt->bind_param("ssssssssssss", $timezone, $statusAlat, $lokasi, $kota, 
+    $stmt->bind_param("sssssssssssss", $timezone, $statusAlat, $lokasi, $kota, 
                       $owner, $internet_no, $pic_name, $pic_contact, 
-                      $masa_aktif, $masa_paket, $waktu_add, $dev_id);
+                      $masa_aktif, $masa_paket, $waktu_add, $dev_id, $uid);
     $stmt->execute();
 
-    // Ambil user_id
-    $stmt2 = $conn->prepare("SELECT user_id FROM user_devices WHERE device_unique_id = ?");
-    $stmt2->bind_param("s", $dev_id);
-    $stmt2->execute();
-    $result = $stmt2->get_result();
-
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        $user_id = $row['user_id'];
-
+    if ($uid) {
         // Update username & email
         $stmt3 = $conn->prepare("UPDATE users SET username = ?, email = ? WHERE id = ?");
-        $stmt3->bind_param("ssi", $username, $email, $user_id);
+        $stmt3->bind_param("ssi", $username, $email, $uid);
         $stmt3->execute();
     }
 }
