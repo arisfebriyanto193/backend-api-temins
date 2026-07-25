@@ -58,7 +58,7 @@ $q_sensor = mysqli_query($conn, "
         ds.unit
     FROM user_sensor_charts usc
     JOIN device_settings ds ON ds.id = usc.device_setting_id
-    WHERE usc.user_id = '$user_id'
+    WHERE 1=1
       AND usc.device_unique_id = '$device_unique_id'
       AND usc.is_active = 1
     ORDER BY usc.chart_order ASC
