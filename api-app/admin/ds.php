@@ -398,6 +398,7 @@ if ($method === 'POST') {
         if(strtoupper($dev_type) == 'AWLR') {
              $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name,  tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES ('$dev_id', 'tuc', '400', '1', 0, 'config', 'config')");
              $conn->query("INSERT INTO device_settings (device_unique_id, parameter_name,  tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES ('$dev_id', 'tuc', '400', '1', 0, 'sungai', 'jenis')");
+        } 
         } // end if (!$is_demo)
 
         echo json_encode(["status"=>true, "message"=>"User berhasil dibuat"]);
