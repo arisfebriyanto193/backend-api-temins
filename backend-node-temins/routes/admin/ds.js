@@ -136,7 +136,8 @@ router.all('/', async (req, res) => {
                     if (cek.length > 0) throw new Error("Username sudah ada");
 
                     const hash = await bcrypt.hash(password, 10);
-                    const [uRes] = await connection.execute("INSERT INTO users (username, password, role, email) VALUES (?, ?, 'user', ?)", [username, hash, email || '']);
+                    const is_demo_val = is_demo ? 1 : 0;
+                    const [uRes] = await connection.execute("INSERT INTO users (username, password, role, email, is_demo) VALUES (?, ?, 'user', ?, ?)", [username, hash, email || '', is_demo_val]);
                     const new_uid = uRes.insertId;
 
                     const masa_aktif = nullIfEmpty(req.body.masa_aktif);
@@ -297,23 +298,31 @@ router.all('/', async (req, res) => {
                 return res.json({ status: true, message: "Password diubah" });
             }
 
-            if (action === 'delete_user') {
+                if (action === 'delete_user') {
                 const connection = await db.getConnection();
                 try {
                     await connection.beginTransaction();
                     const uid = req.body.user_id;
                     const did = req.body.device_unique_id;
 
-                    await connection.execute("DELETE FROM user_sensor_charts WHERE device_unique_id=?", [did]);
-                    await connection.execute("DELETE FROM sensor_logs WHERE device_unique_id=?", [did]);
-                    await connection.execute("DELETE FROM device_settings WHERE device_unique_id=?", [did]);
-                    await connection.execute("DELETE FROM device_automations WHERE device_unique_id=?", [did]);
+                    const [uCheck] = await connection.execute("SELECT is_demo FROM users WHERE id=?", [uid]);
+                    const is_demo = uCheck.length > 0 ? uCheck[0].is_demo : 0;
+
+                    await connection.execute("DELETE FROM user_sensor_charts WHERE user_id=?", [uid]);
                     await connection.execute("DELETE FROM user_devices WHERE user_id=?", [uid]);
                     await connection.execute("DELETE FROM users WHERE id=?", [uid]);
 
+                    // Only delete device settings if this is NOT a demo account
+                    if (!is_demo) {
+                        await connection.execute("DELETE FROM user_sensor_charts WHERE device_unique_id=?", [did]);
+                        await connection.execute("DELETE FROM sensor_logs WHERE device_unique_id=?", [did]);
+                        await connection.execute("DELETE FROM device_settings WHERE device_unique_id=?", [did]);
+                        await connection.execute("DELETE FROM device_automations WHERE device_unique_id=?", [did]);
+                    }
+
                     await connection.commit();
                     connection.release();
-                    return res.json({ status: true, message: "User dihapus total" });
+                    return res.json({ status: true, message: "User dihapus berhasil" });
                 } catch (err) {
                     await connection.rollback();
                     connection.release();
