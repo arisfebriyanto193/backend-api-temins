@@ -72,4 +72,6 @@ const getPower = async (req, res) => {
     }
 };
 
-module.exports = { getPower };
+const getPowerMobile = getPower;
+
+module.exports = { getPower, getPowerMobile };

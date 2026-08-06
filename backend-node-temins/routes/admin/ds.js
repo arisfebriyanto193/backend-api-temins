@@ -109,11 +109,16 @@ router.all('/', async (req, res) => {
                 return res.json(responseData);
             }
 
-            const [users] = await db.execute(`
+            const [usersRaw] = await db.execute(`
                 SELECT u.id, u.username, d.device_type, d.device_unique_id, d.owner_name, d.city, d.status
                 FROM users u JOIN user_devices d ON u.id = d.user_id 
                 WHERE u.role = 'user' ORDER BY u.id DESC
             `);
+            const users = usersRaw.map(u => ({
+                ...u,
+                id: String(u.id),
+                status: String(u.status)
+            }));
             const [statusRows] = await db.execute("SELECT SUM(status = 1) AS aktif, SUM(status = 0) AS nonaktif FROM user_devices");
             const device_status = { aktif: parseInt(statusRows[0]?.aktif || 0), nonaktif: parseInt(statusRows[0]?.nonaktif || 0) };
             

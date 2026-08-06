@@ -2,4 +2,4 @@ api-app/vendor
 api-app/.env
 rekam-data/go/buf2.json
 backend-node-temins/node_modules
-*.env
+.env

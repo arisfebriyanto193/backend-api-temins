@@ -38,6 +38,15 @@ app.use('/api-app/admin/ds.php', adminDsRoutes);
 const adminSetRoutes = require('./routes/admin/settings');
 app.use('/api-app/admin/admin-set.php', adminSetRoutes);
 
+const adminDevRoutes = require('./routes/admin/dev');
+app.use('/api-app/admin/dev.php', adminDevRoutes);
+
+const adminInstansiRoutes = require('./routes/admin/instansi');
+app.use('/api-app/admin/instansi.php', adminInstansiRoutes);
+
+const adminSetRecRoutes = require('./routes/admin/set_rec');
+app.use('/api-app/admin/set_rec.php', adminSetRecRoutes);
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

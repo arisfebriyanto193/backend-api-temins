@@ -37,7 +37,11 @@ const getPower = async (req, res) => {
 
         return res.json({
             status: true,
-            device: { name: device.device_name, id: device_unique_id, zonawaktu: device.timezone },
+            device: {
+                name: device.device_name,
+                id: device_unique_id,
+                zonawaktu: device.timezone
+            },
             sensors: sensors,
             mqtt_topics: topics
         });
@@ -47,4 +51,6 @@ const getPower = async (req, res) => {
     }
 };
 
-module.exports = { getPower };
+const getPowerMobile = getPower;
+
+module.exports = { getPower, getPowerMobile };
