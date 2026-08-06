@@ -110,7 +110,7 @@ router.all('/', async (req, res) => {
             }
 
             const [usersRaw] = await db.execute(`
-                SELECT u.id, u.username, d.device_type, d.device_unique_id, d.owner_name, d.city, d.status
+                SELECT u.id, u.username, u.is_demo, d.device_type, d.device_unique_id, d.owner_name, d.city, d.status
                 FROM users u JOIN user_devices d ON u.id = d.user_id 
                 WHERE u.role = 'user' ORDER BY u.id DESC
             `);
@@ -208,6 +208,9 @@ router.all('/', async (req, res) => {
                     const masa_paket = nullIfEmpty(req.body.masa_paket);
                     const waktu_add = nullIfEmpty(req.body.waktu_add);
 
+                    const [uCheck] = await connection.execute("SELECT is_demo FROM users WHERE id=?", [uid]);
+                    const is_demo = uCheck.length > 0 ? uCheck[0].is_demo : 0;
+
                     if (timezone && statusAlat && lokasi && username) {
                         await connection.execute(`
                             UPDATE user_devices 
@@ -220,63 +223,66 @@ router.all('/', async (req, res) => {
                         }
                     }
 
-                    if (awlrData && awlrStatusData && awlrJenis) {
-                        await connection.execute("UPDATE device_settings SET parameter_name=?, unit=? WHERE device_unique_id=? AND category='config' LIMIT 1", [awlrData, awlrStatusData, dev_id]);
-                        const [jCek] = await connection.execute("SELECT id FROM device_settings WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [dev_id]);
-                        if (jCek.length > 0) {
-                            await connection.execute("UPDATE device_settings SET category=? WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [awlrJenis, dev_id]);
-                        } else {
-                            await connection.execute("INSERT INTO device_settings (device_unique_id, parameter_name, tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES (?, 'tuc', '400', '1', 0, ?, 'jenis')", [dev_id, awlrJenis]);
-                        }
-                    }
-
-                    if (awlr_height) {
-                        await connection.execute("UPDATE device_settings SET tinggi_sensor=? WHERE device_unique_id=?", [awlr_height, dev_id]);
-                    }
-
-                    await connection.execute("DELETE FROM user_sensor_charts WHERE device_unique_id=?", [dev_id]);
-
-                    if (Array.isArray(params)) {
-                        for (let idx = 0; idx < params.length; idx++) {
-                            const p = params[idx];
-                            const vis = p.is_visible ? 1 : 0;
-                            const order = idx + 1;
-                            let setting_id = p.id;
-
-                            if (setting_id) {
-                                await connection.execute(`
-                                    UPDATE device_settings SET parameter_name=?, mqtt_topic=?, unit=?, is_visible=?, display_order=? WHERE id=?
-                                `, [p.label, p.topic, p.unit, vis, order, setting_id]);
+                    // Only update shared configurations if NOT a demo account
+                    if (!is_demo) {
+                        if (awlrData && awlrStatusData && awlrJenis) {
+                            await connection.execute("UPDATE device_settings SET parameter_name=?, unit=? WHERE device_unique_id=? AND category='config' LIMIT 1", [awlrData, awlrStatusData, dev_id]);
+                            const [jCek] = await connection.execute("SELECT id FROM device_settings WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [dev_id]);
+                            if (jCek.length > 0) {
+                                await connection.execute("UPDATE device_settings SET category=? WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [awlrJenis, dev_id]);
                             } else {
-                                const [sRes] = await connection.execute(`
-                                    INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) 
-                                    VALUES (?, ?, ?, ?, ?, ?, 'sensor')
-                                `, [dev_id, p.label, p.topic, p.unit, order, vis]);
-                                setting_id = sRes.insertId;
-                            }
-
-                            if (p.is_chart && p.chart_data) {
-                                await connection.execute(`
-                                    INSERT INTO user_sensor_charts (user_id, device_unique_id, device_setting_id, chart_order, is_active, data) 
-                                    VALUES (?, ?, ?, ?, 1, ?)
-                                `, [uid, dev_id, setting_id, parseInt(p.chart_order), p.chart_data]);
+                                await connection.execute("INSERT INTO device_settings (device_unique_id, parameter_name, tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES (?, 'tuc', '400', '1', 0, ?, 'jenis')", [dev_id, awlrJenis]);
                             }
                         }
-                    }
 
-                    await connection.execute("DELETE FROM device_automations WHERE device_unique_id=?", [dev_id]);
-                    if (Array.isArray(automations)) {
-                        for (let auto of automations) {
-                            await connection.execute(`
-                                INSERT INTO device_automations (device_unique_id, parameter_name, operator, threshold, send_email, send_notification) 
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            `, [dev_id, auto.parameter_name, auto.operator, parseFloat(auto.threshold), auto.send_email ? 1 : 0, auto.send_notification ? 1 : 0]);
+                        if (awlr_height) {
+                            await connection.execute("UPDATE device_settings SET tinggi_sensor=? WHERE device_unique_id=?", [awlr_height, dev_id]);
+                        }
+
+                        await connection.execute("DELETE FROM user_sensor_charts WHERE device_unique_id=?", [dev_id]);
+
+                        if (Array.isArray(params)) {
+                            for (let idx = 0; idx < params.length; idx++) {
+                                const p = params[idx];
+                                const vis = p.is_visible ? 1 : 0;
+                                const order = idx + 1;
+                                let setting_id = p.id;
+
+                                if (setting_id) {
+                                    await connection.execute(`
+                                        UPDATE device_settings SET parameter_name=?, mqtt_topic=?, unit=?, is_visible=?, display_order=? WHERE id=?
+                                    `, [p.label, p.topic, p.unit, vis, order, setting_id]);
+                                } else {
+                                    const [sRes] = await connection.execute(`
+                                        INSERT INTO device_settings (device_unique_id, parameter_name, mqtt_topic, unit, display_order, is_visible, category) 
+                                        VALUES (?, ?, ?, ?, ?, ?, 'sensor')
+                                    `, [dev_id, p.label, p.topic, p.unit, order, vis]);
+                                    setting_id = sRes.insertId;
+                                }
+
+                                if (p.is_chart && p.chart_data) {
+                                    await connection.execute(`
+                                        INSERT INTO user_sensor_charts (user_id, device_unique_id, device_setting_id, chart_order, is_active, data) 
+                                        VALUES (?, ?, ?, ?, 1, ?)
+                                    `, [uid, dev_id, setting_id, parseInt(p.chart_order), p.chart_data]);
+                                }
+                            }
+                        }
+
+                        await connection.execute("DELETE FROM device_automations WHERE device_unique_id=?", [dev_id]);
+                        if (Array.isArray(automations)) {
+                            for (let auto of automations) {
+                                await connection.execute(`
+                                    INSERT INTO device_automations (device_unique_id, parameter_name, operator, threshold, send_email, send_notification) 
+                                    VALUES (?, ?, ?, ?, ?, ?)
+                                `, [dev_id, auto.parameter_name, auto.operator, parseFloat(auto.threshold), auto.send_email ? 1 : 0, auto.send_notification ? 1 : 0]);
+                            }
                         }
                     }
 
                     await connection.commit();
                     connection.release();
-                    return res.json({ status: true, message: "Konfigurasi device berhasil diupdate", username });
+                    return res.json({ status: true, message: is_demo ? "Profil dan lokasi berhasil diupdate (konfigurasi sensor tidak dapat diubah untuk akun demo)" : "Konfigurasi device berhasil diupdate", username });
                 } catch (err) {
                     await connection.rollback();
                     connection.release();
