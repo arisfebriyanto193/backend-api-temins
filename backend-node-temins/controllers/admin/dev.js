@@ -35,7 +35,7 @@ const handleDevTemplates = async (req, res) => {
         }
 
         const method = req.method;
-        const action = req.query.action || req.body.action || '';
+        const action = (req.query && req.query.action) || (req.body && req.body.action) || '';
 
         // A. GET ALL TEMPLATES
         if (method === 'GET') {
