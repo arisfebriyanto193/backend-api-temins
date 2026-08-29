@@ -51,7 +51,7 @@ router.all('/', async (req, res) => {
                 const did = req.query.device_unique_id;
                 const uid_filter = req.query.user_id;
 
-                const [sRows] = await db.execute("SELECT * FROM device_settings WHERE device_unique_id=? ORDER BY display_order ASC", [did]);
+                const [sRows] = await db.execute("SELECT * FROM device_settings WHERE device_unique_id=? AND category NOT IN ('config', 'jenis') ORDER BY display_order ASC", [did]);
                 let settings = [];
                 for (let s of sRows) {
                     const [cRows] = await db.execute("SELECT chart_order, data FROM user_sensor_charts WHERE device_setting_id = ?", [s.id]);
@@ -253,7 +253,7 @@ router.all('/', async (req, res) => {
 
                                 if (setting_id) {
                                     await connection.execute(`
-                                        UPDATE device_settings SET parameter_name=?, mqtt_topic=?, unit=?, is_visible=?, display_order=? WHERE id=?
+                                        UPDATE device_settings SET parameter_name=?, mqtt_topic=?, unit=?, is_visible=?, display_order=? WHERE id=? AND category NOT IN ('config', 'jenis')
                                     `, [p.label, p.topic, p.unit, vis, order, setting_id]);
                                 } else {
                                     const [sRes] = await connection.execute(`

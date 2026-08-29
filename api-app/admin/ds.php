@@ -99,7 +99,7 @@ if ($method === 'GET') {
         "SELECT * 
          FROM device_settings 
          WHERE device_unique_id='$did' 
-        --  AND category='sensor' 
+         AND category NOT IN ('config', 'jenis')
          ORDER BY display_order ASC"
     );
 
@@ -603,7 +603,7 @@ if (
                     unit           = '$unit',
                     is_visible     = '$vis',
                     display_order  = '$order'
-                WHERE id = '$sid'
+                WHERE id = '$sid' AND category NOT IN ('config', 'jenis')
             ");
 
             $setting_id = $sid;
