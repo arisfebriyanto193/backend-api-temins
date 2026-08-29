@@ -53,6 +53,59 @@ const ewsControl = (req, res) => {
     }
 };
 
+const uploadAudioControl = (req, res) => {
+    try {
+        const { device_id, target } = req.body;
+        
+        if (!device_id || !target) {
+            return res.status(400).json({ 
+                status: false, 
+                message: 'device_id and target are required' 
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                status: false,
+                message: 'audio file is required'
+            });
+        }
+
+        const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+        const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+        
+        const mqttPayload = {
+            cmd: 'ota_audio',
+            url: fileUrl,
+            target: target
+        };
+        
+        const topic = `temins_iot/${device_id}/control`;
+        
+        mqttClient.publish(topic, JSON.stringify(mqttPayload), { qos: 1 }, (err) => {
+            if (err) {
+                console.error('MQTT Publish Error:', err);
+                return res.status(500).json({ 
+                    status: false, 
+                    message: 'Failed to publish to MQTT broker' 
+                });
+            }
+            
+            return res.json({ 
+                status: true, 
+                message: 'Audio uploaded and MQTT command published',
+                topic: topic,
+                data_published: mqttPayload,
+                file_url: fileUrl
+            });
+        });
+    } catch (error) {
+        console.error('Upload Audio Error:', error);
+        res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+};
+
 module.exports = {
-    ewsControl
+    ewsControl,
+    uploadAudioControl
 };
