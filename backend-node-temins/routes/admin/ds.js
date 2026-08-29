@@ -226,7 +226,10 @@ router.all('/', async (req, res) => {
                     // Only update shared configurations if NOT a demo account
                     if (!is_demo) {
                         if (awlrData && awlrStatusData && awlrJenis) {
-                            await connection.execute("UPDATE device_settings SET parameter_name=?, unit=? WHERE device_unique_id=? AND category='config' LIMIT 1", [awlrData, awlrStatusData, dev_id]);
+                            const [cResult] = await connection.execute("UPDATE device_settings SET parameter_name=?, unit=? WHERE device_unique_id=? AND category='config' LIMIT 1", [awlrData, awlrStatusData, dev_id]);
+                            if (cResult.affectedRows === 0) {
+                                await connection.execute("INSERT INTO device_settings (device_unique_id, parameter_name, tinggi_sensor, unit, is_visible, category, mqtt_topic) VALUES (?, ?, '400', ?, 0, 'config', 'config')", [dev_id, awlrData, awlrStatusData]);
+                            }
                             const [jCek] = await connection.execute("SELECT id FROM device_settings WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [dev_id]);
                             if (jCek.length > 0) {
                                 await connection.execute("UPDATE device_settings SET category=? WHERE device_unique_id=? AND mqtt_topic='jenis' LIMIT 1", [awlrJenis, dev_id]);

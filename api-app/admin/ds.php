@@ -480,16 +480,36 @@ if (
     $conn->begin_transaction();
 
     try {
-        // 1. Update config
-        $stmt1 = $conn->prepare("
-            UPDATE device_settings
-            SET parameter_name = ?, unit = ?
+        // 1. Update atau Insert config
+        $check_config = $conn->prepare("
+            SELECT id FROM device_settings
             WHERE device_unique_id = ?
               AND category = 'config'
             LIMIT 1
         ");
-        $stmt1->bind_param("sss", $parameter_name, $unit, $dev_id);
-        $stmt1->execute();
+        $check_config->bind_param("s", $dev_id);
+        $check_config->execute();
+        $res_config = $check_config->get_result();
+
+        if ($res_config->num_rows > 0) {
+            $stmt1 = $conn->prepare("
+                UPDATE device_settings
+                SET parameter_name = ?, unit = ?
+                WHERE device_unique_id = ?
+                  AND category = 'config'
+                LIMIT 1
+            ");
+            $stmt1->bind_param("sss", $parameter_name, $unit, $dev_id);
+            $stmt1->execute();
+        } else {
+            $insert_config = $conn->prepare("
+                INSERT INTO device_settings
+                (device_unique_id, parameter_name, tinggi_sensor, unit, is_visible, category, mqtt_topic)
+                VALUES (?, ?, '400', ?, 0, 'config', 'config')
+            ");
+            $insert_config->bind_param("sss", $dev_id, $parameter_name, $unit);
+            $insert_config->execute();
+        }
 
         // 2. Cek apakah mqtt_topic = 'jenis' sudah ada
         $check = $conn->prepare("
