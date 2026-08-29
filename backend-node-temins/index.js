@@ -47,6 +47,9 @@ app.use('/api-app/admin/instansi.php', adminInstansiRoutes);
 const adminSetRecRoutes = require('./routes/admin/set_rec');
 app.use('/api-app/admin/set_rec.php', adminSetRecRoutes);
 
+const ewsRoutes = require('./routes/ews');
+app.use('/api/v1/ews', ewsRoutes);
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
