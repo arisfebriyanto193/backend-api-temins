@@ -78,10 +78,16 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 	}
 
 	// Kalkulasi AWLR: tinggi air = tinggi sensor - nilai tuc
-	if parameter == "tuc" {
+	if parameter == "ta" {
 		if strings.ToLower(deviceType) == "awlr" {
 			if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
 				tinggiAir := tinggiSensor - value
+				
+				// Konversi ke meter (m) khusus untuk device 0048
+				if deviceID == "0048" {
+					tinggiAir = tinggiAir / 100.0 // dibagi 100 untuk dari cm ke m
+				}
+				
 				airKey := fmt.Sprintf("%s|result_tinggi_air", deviceID)
 				bufferData[airKey] = BufferData{
 					DeviceID:   deviceID,
