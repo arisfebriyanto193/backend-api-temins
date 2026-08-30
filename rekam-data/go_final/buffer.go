@@ -94,20 +94,8 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 				awlrCalculationCount++
 				stateLock.Unlock()
 				
-				// Log khusus AWLR
-				logStr := fmt.Sprintf("🌊 [AWLR] Waktu: %s | ID: %s | Hitung: %.2f (Tinggi Sensor) - %.2f (Nilai Sensor) = %.2f (Tinggi Air)", timestamp, deviceID, tinggiSensor, value, tinggiAir)
-				log.Println(logStr)
-				
-				// Tulis ke file log
-				if f, err := os.OpenFile("awlr-result.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-					f.WriteString(logStr + "\n")
-					f.Close()
-				}
-			} else {
-				log.Printf("⚠️ [AWLR-DEBUG] Skipping ID: %s | DeviceType: %s (is AWLR) tapi tidak ada tinggi_sensor di cache MySQL!\n", deviceID, deviceType)
+
 			}
-		} else {
-			log.Printf("⚠️ [AWLR-DEBUG] Skipping ID: %s | Terima parameter 'tuc' tapi tipe device-nya bukan 'awlr' (Tipe: '%s')\n", deviceID, deviceType)
 		}
 	}
 }
