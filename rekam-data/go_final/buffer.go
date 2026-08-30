@@ -87,7 +87,7 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 				DeviceID:   deviceID,
 				DeviceType: deviceType,
 				Parameter:  "result_tinggi_air",
-				Value:      tinggiAir,
+				Value:      tinggiAir, 
 				Timestamp:  timestamp,
 			}
 			stateLock.Lock()
