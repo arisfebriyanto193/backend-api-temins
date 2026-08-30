@@ -127,7 +127,7 @@ func getAllSensorHeightsFromMySQL() map[string]float64 {
 			continue
 		}
 
-		if tinggiSensor.Float64 <= 0 || tinggiSensor.Float64 > 10000 {
+		if tinggiSensor.Float64 <= 0 {
 			skippedCount++
 			continue
 		}
