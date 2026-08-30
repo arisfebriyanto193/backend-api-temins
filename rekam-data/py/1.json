@@ -191,6 +191,11 @@
                     "dev_id": "0038",
                     "use_default": true,
                     "topic": []
+                },
+                {
+                    "dev_id": "0048",
+                    "use_default": true,
+                    "topic": []
                 }
             ]
         },
