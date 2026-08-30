@@ -78,10 +78,11 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 	}
 
 	// Kalkulasi AWLR: tinggi air = tinggi sensor - nilai tuc
-	if strings.ToLower(deviceType) == "awlr" && parameter == "tuc" {
-		if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
-			tinggiAir := tinggiSensor - value
-			airKey := fmt.Sprintf("%s|result_tinggi_air", deviceID)
+	if parameter == "tuc" {
+		if strings.ToLower(deviceType) == "awlr" {
+			if tinggiSensor, exists := getSensorHeightFromCache(deviceID); exists {
+				tinggiAir := tinggiSensor - value
+				airKey := fmt.Sprintf("%s|result_tinggi_air", deviceID)
 			bufferData[airKey] = BufferData{
 				DeviceID:   deviceID,
 				DeviceType: deviceType,
@@ -102,7 +103,11 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 				f.WriteString(logStr + "\n")
 				f.Close()
 			}
+		} else {
+			log.Printf("⚠️ [AWLR-DEBUG] Skipping ID: %s | DeviceType: %s (is AWLR) tapi tidak ada tinggi_sensor di cache MySQL!\n", deviceID, deviceType)
 		}
+	} else if parameter == "tuc" {
+		log.Printf("⚠️ [AWLR-DEBUG] Skipping ID: %s | Terima parameter 'tuc' tapi tipe device-nya bukan 'awlr' (Tipe: '%s')\n", deviceID, deviceType)
 	}
 }
 
