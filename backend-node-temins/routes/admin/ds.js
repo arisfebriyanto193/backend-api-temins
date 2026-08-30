@@ -22,7 +22,12 @@ router.use(async (req, res, next) => {
 function nullIfEmpty(value) {
     if (value === undefined || value === null) return null;
     const str = String(value).trim();
-    return str === '' ? null : str;
+    if (str === '') return null;
+    // Format ISO strings (e.g., '2026-08-15T22:00:00.000Z') to MySQL DATETIME ('YYYY-MM-DD HH:MM:SS')
+    if (str.includes('T') && str.endsWith('Z')) {
+        return str.slice(0, 19).replace('T', ' ');
+    }
+    return str;
 }
 
 router.all('/', async (req, res) => {
