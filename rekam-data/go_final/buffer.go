@@ -101,7 +101,11 @@ func saveToBuffer(deviceID, parameter string, value float64) {
 				stateLock.Unlock()
 				
 
+			} else {
+				log.Printf("⚠️ [AWLR-DEBUG] ID %s Type %s: missing from sensor cache\n", deviceID, deviceType)
 			}
+		} else {
+			log.Printf("⚠️ [AWLR-DEBUG] ID %s Type %s: is not awlr\n", deviceID, deviceType)
 		}
 	}
 }
