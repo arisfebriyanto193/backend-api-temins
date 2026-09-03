@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -14,56 +12,48 @@ import (
 // CONFIG LOADER
 // ==========================
 
-// updateConfigFromJSON membaca file konfigurasi JSON (1.json) dan mengembalikan
-// dua map: daftar topic MQTT yang harus di-subscribe, dan mapping deviceID → tipeDevice.
-// Dipanggil saat startup dan setiap kali file konfigurasi berubah (oleh configWatcher).
-func updateConfigFromJSON() (map[string]bool, map[string]string) {
+// updateConfigFromMySQL mengambil daftar device aktif dari tabel user_devices di MySQL
+// dan mengembalikan map deviceID -> tipeDevice beserta daftar topic MQTT (dengan wildcard #).
+func updateConfigFromMySQL() (map[string]bool, map[string]string) {
 	newTopics := make(map[string]bool)
 	newMap := make(map[string]string)
 
-	if _, err := os.Stat(CONFIG_JSON_PATH); os.IsNotExist(err) {
-		log.Printf("⚠️ [CONFIG] File not found: %s\n", CONFIG_JSON_PATH)
+	if mysqlDB == nil {
+		log.Println("⚠️ [CONFIG] MySQL connection is nil. Cannot load config.")
 		return newTopics, newMap
 	}
 
-	fileData, err := os.ReadFile(CONFIG_JSON_PATH)
+	rows, err := mysqlDB.Query("SELECT device_unique_id, device_type FROM user_devices WHERE status = 1")
 	if err != nil {
-		log.Printf("❌ [CONFIG] Read error: %v\n", err)
+		log.Printf("❌ [CONFIG] Query error: %v\n", err)
 		return newTopics, newMap
 	}
+	defer rows.Close()
 
-	var config Config
-	if err := json.Unmarshal(fileData, &config); err != nil {
-		log.Printf("❌ [CONFIG] Parse error: %v\n", err)
-		return newTopics, newMap
-	}
+	log.Println("\n📋 [CONFIG] Loading device configuration from MySQL:")
 
-	log.Println("\n📋 [CONFIG] Loading device configuration:")
-
-	for typeName, typeData := range config.DeviceType {
-		for _, dev := range typeData.Devices {
-			newMap[dev.DevID] = typeName
-
-			params := make(map[string]bool)
-			if dev.UseDefault {
-				for _, p := range typeData.DefTopic {
-					params[p] = true
-				}
-			}
-			for _, p := range dev.Topic {
-				params[p] = true
-			}
-
-			log.Printf("   📱 Device: %s | Type: %s\n", dev.DevID, typeName)
-
-			for param := range params {
-				topic := fmt.Sprintf("temins_iot/%s/data/%s", dev.DevID, param)
-				newTopics[topic] = true
-			}
+	for rows.Next() {
+		var devID, devType string
+		if err := rows.Scan(&devID, &devType); err != nil {
+			log.Printf("❌ [CONFIG] Scan error: %v\n", err)
+			continue
 		}
+
+		// Jika devID kosong, skip
+		if devID == "" {
+			continue
+		}
+
+		newMap[devID] = devType
+		
+		// Subscribe menggunakan wildcard # untuk menangkap semua parameter dari device tersebut
+		topic := fmt.Sprintf("temins_iot/%s/data/#", devID)
+		newTopics[topic] = true
+
+		log.Printf("   📱 Device: %s | Type: %s\n", devID, devType)
 	}
 
-	log.Printf("\n✅ [CONFIG] Total: %d devices, %d topics\n\n", len(newMap), len(newTopics))
+	log.Printf("\n✅ [CONFIG] Total: %d devices loaded from database\n\n", len(newMap))
 	return newTopics, newMap
 }
 
@@ -71,36 +61,29 @@ func updateConfigFromJSON() (map[string]bool, map[string]string) {
 // CONFIG FILE WATCHER
 // ==========================
 
-// configWatcher memantau perubahan file konfigurasi JSON setiap 10 detik.
-// Jika file berubah (berdasarkan mod time), konfigurasi akan di-reload
-// dan topic MQTT baru akan di-subscribe secara otomatis.
-// Fungsi ini berjalan sebagai goroutine utama di akhir main() (blocking).
+// configWatcher secara periodik (setiap 30 detik) mengambil ulang konfigurasi dari MySQL.
+// Jika ada penambahan device baru, sistem akan otomatis melakukan subscribe ke topic-nya.
 func configWatcher(client mqtt.Client) {
 	for {
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 
-		fileInfo, err := os.Stat(CONFIG_JSON_PATH)
-		if err != nil {
+		newTopics, newMap := updateConfigFromMySQL()
+		if len(newMap) == 0 {
+			// Jika kosong (mungkin query error atau db reconnecting), jangan timpa map lama
 			continue
 		}
 
-		if fileInfo.ModTime() != lastFileModTime {
-			lastFileModTime = fileInfo.ModTime()
-			log.Println("\n🔄 [WATCHER] Config file changed, reloading...")
+		stateLock.Lock()
+		deviceMap = newMap
 
-			newTopics, newMap := updateConfigFromJSON()
-
-			stateLock.Lock()
-			deviceMap = newMap
-
-			// Subscribe ke topic baru yang belum di-subscribe sebelumnya
-			for topic := range newTopics {
-				if !subscribedTopics[topic] {
-					client.Subscribe(topic, 0, nil)
-				}
+		// Subscribe ke topic baru yang belum di-subscribe sebelumnya
+		for topic := range newTopics {
+			if !subscribedTopics[topic] {
+				client.Subscribe(topic, 0, nil)
+				log.Printf("🔄 [WATCHER] Subscribed to new topic: %s\n", topic)
 			}
-			subscribedTopics = newTopics
-			stateLock.Unlock()
 		}
+		subscribedTopics = newTopics
+		stateLock.Unlock()
 	}
 }

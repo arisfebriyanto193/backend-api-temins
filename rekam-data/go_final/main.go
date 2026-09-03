@@ -50,9 +50,9 @@ func main() {
 	log.Println("🔄 [INIT] Loading CH state from file...")
 	loadCHState()
 
-	// ── 4. Load Konfigurasi Perangkat ────────────────────────────────────────
-	log.Println("🔄 [INIT] Loading configuration...")
-	newTopics, newMap := updateConfigFromJSON()
+	// ── 4. Load Konfigurasi Perangkat dari MySQL ──────────────────────────────
+	log.Println("🔄 [INIT] Loading configuration from MySQL...")
+	newTopics, newMap := updateConfigFromMySQL()
 	stateLock.Lock()
 	deviceMap = newMap
 	subscribedTopics = newTopics
