@@ -18,7 +18,7 @@ const (
 	WEBSOCKET_LOG_PORT     = 8230
 
 	// PostgreSQL
-	POSTGRES_DSN = "host=127.0.0.1 port=5432 user=postgres password=example dbname=temins sslmode=disable application_name=rekam-data"
+	POSTGRES_DSN = "host=127.0.0.1 port=5432 user=postgres password=pr0j3kc3rd45 dbname=temins sslmode=disable application_name=rekam-data"
 
 	// MySQL
 	MYSQL_DSN = "root:06ec30fa@tcp(127.0.0.1:3306)/temins?parseTime=true&timeout=10s"
