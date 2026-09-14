@@ -18,7 +18,6 @@ const handleInstansi = async (req, res) => {
         }
 
         if (!isAdmin) {
-            // Note: In PHP it says "Unauthorized cuyy" but we keep it clean here
             return res.status(403).json({ status: false, message: "Access Denied (Admin Only)" });
         }
 

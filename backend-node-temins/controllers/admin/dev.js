@@ -1,6 +1,5 @@
 const db = require('../../config/db');
 
-// Helper to insert params
 async function insertParams(connection, templateId, params) {
     if (!params || !Array.isArray(params)) return;
     
@@ -16,13 +15,11 @@ async function insertParams(connection, templateId, params) {
 
 const handleDevTemplates = async (req, res) => {
     try {
-        // Cek Role Admin
         const user = req.user;
         let isAdmin = false;
         if (user && user.role === 'admin') {
             isAdmin = true;
         } else {
-            // Fallback cek DB
             const uid = user.uid || user.id;
             const [rows] = await db.execute("SELECT role FROM users WHERE id=?", [uid]);
             if (rows.length > 0 && rows[0].role === 'admin') {
@@ -37,7 +34,6 @@ const handleDevTemplates = async (req, res) => {
         const method = req.method;
         const action = (req.query && req.query.action) || (req.body && req.body.action) || '';
 
-        // A. GET ALL TEMPLATES
         if (method === 'GET') {
             const [rows] = await db.execute(`
                 SELECT t.id, t.template_code, t.template_name, p.param_name, p.mqtt_suffix, p.unit, p.data 
@@ -70,11 +66,9 @@ const handleDevTemplates = async (req, res) => {
             return res.json({ status: true, data: Object.values(templatesMap) });
         }
 
-        // B. POST METHODS (CREATE, UPDATE, DELETE)
         if (method === 'POST') {
             const { code, name, params, id } = req.body;
 
-            // 1. CREATE TEMPLATE
             if (action === 'create') {
                 const [cek] = await db.execute("SELECT id FROM device_templates WHERE template_code = ?", [code]);
                 if (cek.length > 0) {
@@ -90,7 +84,6 @@ const handleDevTemplates = async (req, res) => {
                 return res.json({ status: true, message: "Template berhasil dibuat" });
             }
 
-            // 2. UPDATE TEMPLATE
             if (action === 'update') {
                 await db.execute("UPDATE device_templates SET template_code=?, template_name=? WHERE id=?", [code, name, id]);
                 await db.execute("DELETE FROM template_params WHERE template_id=?", [id]);
@@ -98,7 +91,6 @@ const handleDevTemplates = async (req, res) => {
                 return res.json({ status: true, message: "Template diperbarui" });
             }
 
-            // 3. DELETE TEMPLATE
             if (action === 'delete') {
                 await db.execute("DELETE FROM template_params WHERE template_id=?", [id]);
                 await db.execute("DELETE FROM device_templates WHERE id=?", [id]);

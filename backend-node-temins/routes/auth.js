@@ -74,7 +74,7 @@ router.post('/login.php', async (req, res) => {
             username: user.username,
             role: role,
             device_type: device_type,
-            exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7) // 7 days
+            exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7)
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'rahasia_token_jwt_temins');

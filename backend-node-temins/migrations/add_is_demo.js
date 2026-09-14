@@ -3,7 +3,6 @@ const db = require('../config/db');
 async function migrate() {
     console.log("Memulai migrasi: Menambahkan kolom 'is_demo' ke tabel 'users'...");
     try {
-        // Cek apakah kolom sudah ada
         const [columns] = await db.execute(`
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
@@ -15,7 +14,6 @@ async function migrate() {
         if (columns.length > 0) {
             console.log("Kolom 'is_demo' sudah ada. Migrasi dilewati.");
         } else {
-            // Tambah kolom is_demo
             await db.execute('ALTER TABLE users ADD COLUMN is_demo TINYINT(1) DEFAULT 0');
             console.log("Migrasi berhasil: Kolom 'is_demo' telah ditambahkan.");
         }

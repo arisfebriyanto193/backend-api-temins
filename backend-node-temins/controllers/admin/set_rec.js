@@ -5,7 +5,6 @@ const dataFile = path.join(__dirname, '../../../rekam-data/py/1.json');
 
 const handleSetRec = async (req, res) => {
     try {
-        // Cek Auth (sudah dilakukan di middleware, ini opsional tapi baik untuk memastikan)
         const user = req.user;
         let isAdmin = false;
         
@@ -24,7 +23,6 @@ const handleSetRec = async (req, res) => {
             return res.status(403).json({ status: false, message: "Access Denied" });
         }
 
-        // --- SETUP ---
         const dir = path.dirname(dataFile);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -34,7 +32,6 @@ const handleSetRec = async (req, res) => {
             fs.writeFileSync(dataFile, JSON.stringify({ device_type: {} }, null, 4));
         }
 
-        // Read Data
         let data;
         try {
             data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));

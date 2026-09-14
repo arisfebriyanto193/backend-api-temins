@@ -1,6 +1,5 @@
 const db = require('../../config/db');
 
-// Menggantikan fungsi api-app/user/multi/devices.php
 const getMultiDevices = async (req, res) => {
     try {
         const user_id = req.user.uid || req.user.id;
@@ -39,7 +38,6 @@ function detectType(label) {
     return 'general';
 }
 
-// Menggantikan fungsi api-app/user/multi/aws/ds.php
 const getMultiAwsDs = async (req, res) => {
     try {
         const user_id = req.user.uid || req.user.id;

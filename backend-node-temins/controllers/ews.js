@@ -1,6 +1,5 @@
 const mqtt = require('mqtt');
 
-// Connect to MQTT Broker
 const brokerUrl = process.env.MQTT_BROKER_URL || 'wss://karsacerdasinovatif.web.id:8081';
 const mqttClient = mqtt.connect(brokerUrl);
 
@@ -25,7 +24,6 @@ const ewsControl = (req, res) => {
 
         const deviceId = payload.device_id;
         
-        // Remove device_id from payload before sending to MQTT
         const mqttPayload = { ...payload };
         delete mqttPayload.device_id;
         

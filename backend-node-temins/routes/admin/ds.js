@@ -23,7 +23,6 @@ function nullIfEmpty(value) {
     if (value === undefined || value === null) return null;
     const str = String(value).trim();
     if (str === '') return null;
-    // Format ISO strings (e.g., '2026-08-15T22:00:00.000Z') to MySQL DATETIME ('YYYY-MM-DD HH:MM:SS')
     if (str.includes('T') && str.endsWith('Z')) {
         return str.slice(0, 19).replace('T', ' ');
     }
@@ -228,7 +227,6 @@ router.all('/', async (req, res) => {
                         }
                     }
 
-                    // Only update shared configurations if NOT a demo account
                     if (!is_demo) {
                         if (awlrData && awlrStatusData && awlrJenis) {
                             const [cResult] = await connection.execute("UPDATE device_settings SET parameter_name=?, unit=? WHERE device_unique_id=? AND category='config' LIMIT 1", [awlrData, awlrStatusData, dev_id]);
@@ -326,7 +324,6 @@ router.all('/', async (req, res) => {
                     await connection.execute("DELETE FROM user_devices WHERE user_id=?", [uid]);
                     await connection.execute("DELETE FROM users WHERE id=?", [uid]);
 
-                    // Only delete device settings if this is NOT a demo account
                     if (!is_demo) {
                         await connection.execute("DELETE FROM user_sensor_charts WHERE device_unique_id=?", [did]);
                         await connection.execute("DELETE FROM sensor_logs WHERE device_unique_id=?", [did]);

@@ -5,7 +5,6 @@ const { getUserInfo } = require('../controllers/user/info');
 const { getMultiDevices, getMultiAwsDs } = require('../controllers/user/multi');
 
 router.get('/timeout.php', (req, res) => {
-    // Daftar device ID yang menggunakan timeout panjang (contoh: 3 menit)
     const device_id_long_timeout = ["0035"];
 
     return res.json({

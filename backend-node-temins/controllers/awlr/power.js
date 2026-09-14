@@ -63,6 +63,6 @@ const getPower = async (req, res) => {
     }
 };
 
-const getPowerMobile = getPower; // Output JSON is identical to getPower
+const getPowerMobile = getPower;
 
 module.exports = { getPower, getPowerMobile };

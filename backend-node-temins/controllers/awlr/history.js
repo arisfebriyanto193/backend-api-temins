@@ -101,7 +101,6 @@ const getHistoryMobile = async (req, res) => {
         let years = [];
         for (let y = maxYear; y >= minYear; y--) years.push(y);
 
-        // PHP logic hardcoded minYear = 2024 for some reason, but dynamic is better
         if (years.length === 0) years = [new Date().getFullYear()];
 
         return res.json({
