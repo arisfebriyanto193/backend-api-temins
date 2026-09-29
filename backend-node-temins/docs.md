@@ -133,7 +133,7 @@ DB_USER=aris
 DB_PASS=Aris@022805
 DB_NAME=temins
 JWT_SECRET=rahasia_token_jwt_temins
-MQTT_BROKER_URL=wss://karsacerdasinovatif.web.id:8081
+MQTT_BROKER_URL=mqtt://temins.my.id:1883
 ```
 
 ### 4.2. Koneksi Database (`config/db.js`)
@@ -523,7 +523,7 @@ Mengatur rute peringatan dini dan penanganan file audio multipart/form-data meng
 #### [controllers/ews.js](file:///home/aris/Dokumen/projeck/Temins/backend-api-temins/backend-node-temins/controllers/ews.js)
 Mengelola komunikasi perintah kontrol EWS via MQTT.
 - **Koneksi MQTT Broker**:
-  - Menginisialisasi koneksi klien MQTT ke broker (`process.env.MQTT_BROKER_URL || 'wss://karsacerdasinovatif.web.id:8081'`).
+  - Menginisialisasi koneksi klien MQTT ke broker (`process.env.MQTT_BROKER_URL || 'mqtt://temins.my.id:1883'`).
 - **Fungsi**: `ewsControl(req, res)`
   - Menerima payload JSON kontrol (wajib memuat `device_id`).
   - Mengirim payload ke topik MQTT:

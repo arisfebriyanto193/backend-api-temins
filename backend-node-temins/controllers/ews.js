@@ -1,6 +1,6 @@
 const mqtt = require('mqtt');
 
-const brokerUrl = process.env.MQTT_BROKER_URL || 'wss://karsacerdasinovatif.web.id:8081';
+const brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://temins.my.id:1883';
 const mqttClient = mqtt.connect(brokerUrl);
 
 mqttClient.on('connect', () => {

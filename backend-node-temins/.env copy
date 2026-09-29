@@ -5,3 +5,4 @@ DB_USER=aris
 DB_PASS=Aris@022805
 DB_NAME=temins
 JWT_SECRET=rahasia_token_jwt_temins
+MQTT_BROKER_URL=mqtt://temins.my.id:1883
