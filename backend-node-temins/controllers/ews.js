@@ -4,7 +4,7 @@ const brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://temins.my.id:1883';
 const mqttClient = mqtt.connect(brokerUrl);
 
 mqttClient.on('connect', () => {
-    console.log('Connected to MQTT Broker for EWS Control');
+    console.log('Connected to MQTT Broker for EWS Control', brokerUrl);
 });
 
 mqttClient.on('error', (err) => {
