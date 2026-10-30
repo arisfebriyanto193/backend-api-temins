@@ -52,9 +52,10 @@ func main() {
 
 	// ── 4. Load Konfigurasi Perangkat dari MySQL ──────────────────────────────
 	log.Println("🔄 [INIT] Loading configuration from MySQL...")
-	newTopics, newMap := updateConfigFromMySQL()
+	newTopics, newMap, newIntervalMap := updateConfigFromMySQL()
 	stateLock.Lock()
 	deviceMap = newMap
+	deviceIntervalMap = newIntervalMap
 	subscribedTopics = newTopics
 	stateLock.Unlock()
 

@@ -13,20 +13,45 @@ import (
 // ==========================
 
 // updateConfigFromMySQL mengambil daftar device aktif dari tabel user_devices di MySQL
-// dan mengembalikan map deviceID -> tipeDevice beserta daftar topic MQTT (dengan wildcard #).
-func updateConfigFromMySQL() (map[string]bool, map[string]string) {
+// dan mengembalikan map topic MQTT, map deviceID -> tipeDevice, serta map deviceID -> recordInterval (menit).
+func updateConfigFromMySQL() (map[string]bool, map[string]string, map[string]int) {
 	newTopics := make(map[string]bool)
 	newMap := make(map[string]string)
+	newIntervalMap := make(map[string]int)
 
 	if mysqlDB == nil {
 		log.Println("⚠️ [CONFIG] MySQL connection is nil. Cannot load config.")
-		return newTopics, newMap
+		return newTopics, newMap, newIntervalMap
 	}
 
-	rows, err := mysqlDB.Query("SELECT device_unique_id, device_type FROM user_devices WHERE status = 1")
+	rows, err := mysqlDB.Query("SELECT device_unique_id, device_type, COALESCE(record_interval, 5) FROM user_devices WHERE status = 1")
 	if err != nil {
-		log.Printf("❌ [CONFIG] Query error: %v\n", err)
-		return newTopics, newMap
+		// Fallback jika kolom record_interval belum ada di database
+		log.Printf("⚠️ [CONFIG] Query with record_interval failed: %v. Retrying without record_interval...\n", err)
+		var fallbackErr error
+		rows, fallbackErr = mysqlDB.Query("SELECT device_unique_id, device_type FROM user_devices WHERE status = 1")
+		if fallbackErr != nil {
+			log.Printf("❌ [CONFIG] Fallback query error: %v\n", fallbackErr)
+			return newTopics, newMap, newIntervalMap
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var devID, devType string
+			if err := rows.Scan(&devID, &devType); err != nil {
+				continue
+			}
+			if devID == "" {
+				continue
+			}
+			newMap[devID] = devType
+			newIntervalMap[devID] = 5
+			topic := fmt.Sprintf("temins_iot/%s/data/#", devID)
+			newTopics[topic] = true
+			log.Printf("   📱 Device: %s | Type: %s | Interval: 5m (fallback)\n", devID, devType)
+		}
+		log.Printf("\n✅ [CONFIG] Total: %d devices loaded from database\n\n", len(newMap))
+		return newTopics, newMap, newIntervalMap
 	}
 	defer rows.Close()
 
@@ -34,27 +59,31 @@ func updateConfigFromMySQL() (map[string]bool, map[string]string) {
 
 	for rows.Next() {
 		var devID, devType string
-		if err := rows.Scan(&devID, &devType); err != nil {
+		var interval int
+		if err := rows.Scan(&devID, &devType, &interval); err != nil {
 			log.Printf("❌ [CONFIG] Scan error: %v\n", err)
 			continue
 		}
 
-		// Jika devID kosong, skip
 		if devID == "" {
 			continue
 		}
 
+		if interval <= 0 {
+			interval = 5
+		}
+
 		newMap[devID] = devType
+		newIntervalMap[devID] = interval
 		
-		// Subscribe menggunakan wildcard # untuk menangkap semua parameter dari device tersebut
 		topic := fmt.Sprintf("temins_iot/%s/data/#", devID)
 		newTopics[topic] = true
 
-		log.Printf("   📱 Device: %s | Type: %s\n", devID, devType)
+		log.Printf("   📱 Device: %s | Type: %s | Interval: %dm\n", devID, devType, interval)
 	}
 
 	log.Printf("\n✅ [CONFIG] Total: %d devices loaded from database\n\n", len(newMap))
-	return newTopics, newMap
+	return newTopics, newMap, newIntervalMap
 }
 
 // ==========================
@@ -67,7 +96,7 @@ func configWatcher(client mqtt.Client) {
 	for {
 		time.Sleep(30 * time.Second)
 
-		newTopics, newMap := updateConfigFromMySQL()
+		newTopics, newMap, newIntervalMap := updateConfigFromMySQL()
 		if len(newMap) == 0 {
 			// Jika kosong (mungkin query error atau db reconnecting), jangan timpa map lama
 			continue
@@ -75,6 +104,7 @@ func configWatcher(client mqtt.Client) {
 
 		stateLock.Lock()
 		deviceMap = newMap
+		deviceIntervalMap = newIntervalMap
 
 		// Subscribe ke topic baru yang belum di-subscribe sebelumnya
 		for topic := range newTopics {

@@ -49,6 +49,7 @@ var (
 	// Single lock untuk semua shared state
 	stateLock         sync.RWMutex
 	deviceMap         map[string]string
+	deviceIntervalMap map[string]int // deviceID -> interval in minutes (default 5)
 	subscribedTopics  map[string]bool
 	sensorHeightCache map[string]float64
 

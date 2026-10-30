@@ -21,6 +21,19 @@ func formatWIBDate(t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
+// getNext1MinInterval menghitung waktu interval 1 menit berikutnya dan selisihnya dari sekarang.
+func getNext1MinInterval() (time.Time, time.Duration) {
+	nowWIB := getWIBTime()
+	nextMinute := nowWIB.Truncate(time.Minute).Add(time.Minute)
+	return nextMinute, nextMinute.Sub(nowWIB)
+}
+
+// getRounded1MinTimestamp membulatkan waktu ke menit saat ini (detik 00).
+func getRounded1MinTimestamp() time.Time {
+	nowWIB := getWIBTime()
+	return nowWIB.Truncate(time.Minute)
+}
+
 // getNext5MinInterval menghitung waktu interval 5 menit berikutnya dan selisihnya dari sekarang.
 // Digunakan oleh flushToDB untuk menentukan kapan harus flush ke database.
 func getNext5MinInterval() (time.Time, time.Duration) {

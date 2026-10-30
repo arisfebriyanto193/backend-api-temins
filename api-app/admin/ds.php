@@ -146,7 +146,7 @@ if ($method === 'GET') {
     $device_type = '';
     $lokasi = '';
 
-    $sql_device = "SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, u.email, u.username
+    $sql_device = "SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, d.record_interval, u.email, u.username
          FROM user_devices d
          JOIN users u ON d.user_id = u.id
          WHERE d.device_unique_id = '$did'";
@@ -176,7 +176,8 @@ if ($method === 'GET') {
             'masa_aktif' => $r_dev['masa_aktif'],
             'masa_paket' => $r_dev['masa_paket'],
             'waktu_add' => $r_dev['waktu_add'],
-            'username' => $r_dev['username']
+            'username' => $r_dev['username'],
+            'record_interval' => isset($r_dev['record_interval']) ? (int)$r_dev['record_interval'] : 5
         ];
     }
 
@@ -267,7 +268,8 @@ $q = mysqli_query($conn, "
         d.device_unique_id, 
         d.owner_name, 
         d.city,
-        d.status
+        d.status,
+        d.record_interval
     FROM users u 
     JOIN user_devices d ON u.id = d.user_id 
     WHERE u.role = 'user'
@@ -350,8 +352,11 @@ if ($method === 'POST') {
         $conn->query("INSERT INTO users (username, password, role, email) VALUES ('$username', '$password', 'user', '$email')");
         $new_uid = $conn->insert_id;
 
-        $sql_dev = "INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic, timezone, masa_aktif, masa_paket, waktu_add) 
-                    VALUES ('$new_uid', '$dev_name', '$owner', '$city', '$loc', '$inet', '$pic', '$dev_type', '$dev_id', '$pic_name', '$timezone', '$masa_aktif', '$masa_paket', NOW())";
+        $record_interval = isset($input['record_interval']) ? (int)$input['record_interval'] : 5;
+        if ($record_interval <= 0) $record_interval = 5;
+
+        $sql_dev = "INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic, timezone, record_interval, masa_aktif, masa_paket, waktu_add) 
+                    VALUES ('$new_uid', '$dev_name', '$owner', '$city', '$loc', '$inet', '$pic', '$dev_type', '$dev_id', '$pic_name', '$timezone', '$record_interval', '$masa_aktif', '$masa_paket', NOW())";
         
         if(!$conn->query($sql_dev)){
             echo json_encode(["status"=>false, "message"=>"Gagal insert device: ".$conn->error]); exit();
@@ -442,19 +447,21 @@ if (
     $masa_paket = nullIfEmpty($input['masa_paket']);
     $waktu_add = nullIfEmpty($input['waktu_add']);
     $email = $input['email'];
+    $record_interval = isset($input['record_interval']) ? (int)$input['record_interval'] : 5;
+    if ($record_interval <= 0) $record_interval = 5;
 
     // Update user_devices
-    // Columns: timezone, status, location, city, owner_name, internet_no, pic, pic_contact, masa_aktif, masa_paket, waktu_add
+    // Columns: timezone, status, location, city, owner_name, internet_no, pic, pic_contact, record_interval, masa_aktif, masa_paket, waktu_add
     $stmt = $conn->prepare("
         UPDATE user_devices 
         SET timezone = ?, status = ?, location = ?, city = ?, 
             owner_name = ?, internet_no = ?, pic = ?, pic_contact = ?, 
-            masa_aktif = ?, masa_paket = ?, waktu_add = ?
+            record_interval = ?, masa_aktif = ?, masa_paket = ?, waktu_add = ?
         WHERE device_unique_id = ? AND user_id = ?
     ");
-    $stmt->bind_param("sssssssssssss", $timezone, $statusAlat, $lokasi, $kota, 
+    $stmt->bind_param("ssssssssisssss", $timezone, $statusAlat, $lokasi, $kota, 
                       $owner, $internet_no, $pic_name, $pic_contact, 
-                      $masa_aktif, $masa_paket, $waktu_add, $dev_id, $uid);
+                      $record_interval, $masa_aktif, $masa_paket, $waktu_add, $dev_id, $uid);
     $stmt->execute();
 
     if ($uid) {

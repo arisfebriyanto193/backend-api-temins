@@ -80,36 +80,54 @@ func flushBatch(dataToSave []BufferData, batchTimestampStr string) {
 	}
 }
 
-// flushToDB adalah goroutine background yang menunggu interval 5 menit berikutnya,
-// lalu setiap 5 menit membaca buffer dan mem-flush-nya ke PostgreSQL.
-// Ditambahkan 2 detik toleransi agar timestamp tidak meleset ke interval sebelumnya.
+// flushToDB adalah goroutine background yang berjalan setiap interval 1 menit,
+// memeriksa device mana yang jadwal rekam datanya jatuh tempo (misal 5 menit, 30 menit, dll),
+// lalu membaca data buffer untuk device tersebut dan mem-flush-nya ke PostgreSQL.
 func flushToDB() {
-	nextInterval, secondsToWait := getNext5MinInterval()
-	log.Printf("⏰ [DB] Next flush at: %s WIB\n", formatWIBTimestamp(nextInterval))
+	nextInterval, secondsToWait := getNext1MinInterval()
+	log.Printf("⏰ [DB] Next flush check at: %s WIB\n", formatWIBTimestamp(nextInterval))
 	time.Sleep(secondsToWait + 2*time.Second)
 
 	for {
-		batchTimestamp := getRounded5MinTimestamp()
-		batchTimestampStr := formatWIBTimestamp(batchTimestamp)
+		nowWIB := getWIBTime()
+		currentMinute := nowWIB.Minute()
 
-		dataToSave := readAndClearBuffer()
+		// Cari semua device yang jadwal flush-nya jatuh pada menit sekarang
+		dueDevices := make(map[string]bool)
+		stateLock.RLock()
+		for devID, interval := range deviceIntervalMap {
+			if interval <= 0 {
+				interval = 5
+			}
+			if currentMinute%interval == 0 {
+				dueDevices[devID] = true
+			}
+		}
+		stateLock.RUnlock()
 
-		if len(dataToSave) == 0 {
-			stateLock.RLock()
-			log.Printf("📊 [STATUS] MQTT: %d | AWLR: %d | CH-Restart: %d\n",
-				mqttMessageCount, awlrCalculationCount, restartDetected)
-			stateLock.RUnlock()
-		} else {
-			if pgDB == nil {
-				msg := "PostgreSQL pool not initialized"
-				log.Printf("❌ [DB] %s\n", msg)
-				writeLogToFile("ERROR", msg)
+		if len(dueDevices) > 0 {
+			batchTimestamp := getRounded1MinTimestamp()
+			batchTimestampStr := formatWIBTimestamp(batchTimestamp)
+
+			dataToSave := readAndClearBuffer(dueDevices)
+
+			if len(dataToSave) == 0 {
+				stateLock.RLock()
+				log.Printf("📊 [STATUS] Due devices: %d | Data: 0 | MQTT: %d | AWLR: %d | CH-Restart: %d\n",
+					len(dueDevices), mqttMessageCount, awlrCalculationCount, restartDetected)
+				stateLock.RUnlock()
 			} else {
-				flushBatch(dataToSave, batchTimestampStr)
+				if pgDB == nil {
+					msg := "PostgreSQL pool not initialized"
+					log.Printf("❌ [DB] %s\n", msg)
+					writeLogToFile("ERROR", msg)
+				} else {
+					flushBatch(dataToSave, batchTimestampStr)
+				}
 			}
 		}
 
-		nextInterval, secondsToWait = getNext5MinInterval()
+		nextInterval, secondsToWait = getNext1MinInterval()
 		time.Sleep(secondsToWait + 2*time.Second)
 	}
 }

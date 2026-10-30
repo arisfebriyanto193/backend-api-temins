@@ -174,33 +174,34 @@ func LoadBufferFromFile() {
 // READ & CLEAR
 // ==========================
 
-// readAndClearBuffer membaca semua data dari file JSON buffer dan mengosongkannya secara atomik.
-// Dipanggil oleh flushToDB setiap 5 menit. Mengembalikan slice kosong jika tidak ada data.
-// Urutan: sync memory → file → baca file → clear file & memory.
-func readAndClearBuffer() []BufferData {
+// readAndClearBuffer membaca data dari in-memory buffer HANYA untuk device yang jatuh tempo (dueDeviceIDs),
+// lalu menghapus data tersebut dari buffer. Data untuk device yang belum jatuh tempo tetap aman di memory.
+func readAndClearBuffer(dueDeviceIDs map[string]bool) []BufferData {
 	bufferMu.Lock()
 	defer bufferMu.Unlock()
 
-	if len(bufferData) == 0 {
+	if len(bufferData) == 0 || len(dueDeviceIDs) == 0 {
 		return []BufferData{}
 	}
 
-	log.Printf("📊 [BUFFER] Entries to flush: %d\n", len(bufferData))
-
-	// Paksa sync terakhir ke file sebelum flush (agar file selalu up-to-date)
-	writeBufferToFile(bufferData)
-
-	// Kumpulkan hasil dari in-memory map
-	result := make([]BufferData, 0, len(bufferData))
-	for _, v := range bufferData {
-		result = append(result, v)
+	result := make([]BufferData, 0)
+	for k, v := range bufferData {
+		if dueDeviceIDs[v.DeviceID] {
+			result = append(result, v)
+			delete(bufferData, k)
+		}
 	}
 
-	// Kosongkan in-memory map
-	bufferData = make(map[string]BufferData)
+	if len(result) > 0 {
+		log.Printf("📊 [BUFFER] Entries to flush: %d (Sisa di buffer: %d)\n", len(result), len(bufferData))
+	}
 
-	// Kosongkan file buffer (flush sudah berhasil, file tidak diperlukan lagi)
-	clearBufferFile()
+	// Sinkronkan sisa buffer ke file agar crash recovery tetap konsisten
+	if len(bufferData) > 0 {
+		writeBufferToFile(bufferData)
+	} else {
+		clearBufferFile()
+	}
 
 	return result
 }

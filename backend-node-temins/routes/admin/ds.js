@@ -70,7 +70,7 @@ router.all('/', async (req, res) => {
                 let awlr_height = hRows.length > 0 ? hRows[0].tinggi_sensor : 0;
 
                 let sqlDevice = `
-                    SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, u.email, u.username
+                    SELECT d.timezone, d.status, d.device_type, d.location, d.city, d.owner_name, d.internet_no, d.pic, d.pic_contact, d.masa_aktif, d.masa_paket, d.waktu_add, d.record_interval, u.email, u.username
                     FROM user_devices d
                     JOIN users u ON d.user_id = u.id
                     WHERE d.device_unique_id = ?
@@ -100,7 +100,7 @@ router.all('/', async (req, res) => {
                 }));
 
                 let responseData = {
-                    status: true, timezone, lokasi, kota, statusAlat, settings, automations, awlr_height, ...extended_data
+                    status: true, timezone, lokasi, kota, statusAlat, settings, automations, awlr_height, record_interval: dev.record_interval != null ? Number(dev.record_interval) : 5, ...extended_data
                 };
 
                 if (device_type.toUpperCase() === 'AWLR') {
@@ -114,7 +114,7 @@ router.all('/', async (req, res) => {
             }
 
             const [usersRaw] = await db.execute(`
-                SELECT u.id, u.username, u.is_demo, d.device_type, d.device_unique_id, d.owner_name, d.city, d.status
+                SELECT u.id, u.username, u.is_demo, d.device_type, d.device_unique_id, d.owner_name, d.city, d.status, d.record_interval
                 FROM users u JOIN user_devices d ON u.id = d.user_id 
                 WHERE u.role = 'user' ORDER BY u.id DESC
             `);
@@ -146,11 +146,12 @@ router.all('/', async (req, res) => {
 
                     const masa_aktif = nullIfEmpty(req.body.masa_aktif);
                     const masa_paket = nullIfEmpty(req.body.masa_paket);
+                    const record_interval = parseInt(req.body.record_interval) || 5;
                     
                     await connection.execute(`
-                        INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic, timezone, masa_aktif, masa_paket, waktu_add) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                    `, [new_uid, dev_name, owner, city, lokasi, internet_no, pic_name, dev_type, dev_id, pic_name, timezone, masa_aktif, masa_paket]);
+                        INSERT INTO user_devices (user_id, device_name, owner_name, city, location, internet_no, pic_contact, device_type, device_unique_id, pic, timezone, record_interval, masa_aktif, masa_paket, waktu_add) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    `, [new_uid, dev_name, owner, city, lokasi, internet_no, pic_name, dev_type, dev_id, pic_name, timezone, record_interval, masa_aktif, masa_paket]);
 
                     if (!is_demo) {
                         if (Array.isArray(params)) {
@@ -211,6 +212,7 @@ router.all('/', async (req, res) => {
                     const masa_aktif = nullIfEmpty(req.body.masa_aktif);
                     const masa_paket = nullIfEmpty(req.body.masa_paket);
                     const waktu_add = nullIfEmpty(req.body.waktu_add);
+                    const record_interval = parseInt(req.body.record_interval) || 5;
 
                     const [uCheck] = await connection.execute("SELECT is_demo FROM users WHERE id=?", [uid]);
                     const is_demo = uCheck.length > 0 ? uCheck[0].is_demo : 0;
@@ -218,9 +220,9 @@ router.all('/', async (req, res) => {
                     if (timezone && statusAlat && lokasi && username) {
                         await connection.execute(`
                             UPDATE user_devices 
-                            SET timezone=?, status=?, location=?, city=?, owner_name=?, internet_no=?, pic=?, pic_contact=?, masa_aktif=?, masa_paket=?, waktu_add=?
+                            SET timezone=?, status=?, location=?, city=?, owner_name=?, internet_no=?, pic=?, pic_contact=?, record_interval=?, masa_aktif=?, masa_paket=?, waktu_add=?
                             WHERE device_unique_id=? AND user_id=?
-                        `, [timezone, statusAlat, lokasi, city, owner, internet_no, pic_name, pic_contact, masa_aktif, masa_paket, waktu_add, dev_id, uid]);
+                        `, [timezone, statusAlat, lokasi, city, owner, internet_no, pic_name, pic_contact, record_interval, masa_aktif, masa_paket, waktu_add, dev_id, uid]);
                         
                         if (uid) {
                             await connection.execute("UPDATE users SET username=?, email=? WHERE id=?", [username, email, uid]);
