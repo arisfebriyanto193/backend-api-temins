@@ -1,4 +1,6 @@
 #!/bin/bash
+export PATH="/usr/local/go/bin:$PATH"
+
 echo "Menjalankan build untuk go_final..."
 go build -o rekam-data .
 
